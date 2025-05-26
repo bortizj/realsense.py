@@ -15,9 +15,11 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 author: Benhur Ortiz-Jaramillo
 """
 
-from rsmodule import capture_module
+from rsmodule.capture_module import RealSenseCapture
 
 
 if __name__ == "__main__":
-    capture_module.capture_module()
+    capture = RealSenseCapture()
+
+    data = capture.get_frame_data()
     print("Capture module executed successfully.")
