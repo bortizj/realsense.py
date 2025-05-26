@@ -17,9 +17,19 @@ author: Benhur Ortiz-Jaramillo
 
 from rsmodule.capture_module import RealSenseCapture
 
+from rsmodule.visualization import RealSenseVisualizer
+
+import cv2
+
 
 if __name__ == "__main__":
     capture = RealSenseCapture()
+    visualizer = RealSenseVisualizer()
 
-    data = capture.get_frame_data()
+    while True:
+        data = capture.get_frame_data()
+        visualizer.update(data)
+        if cv2.waitKey(50) & 0xFF == ord("q"):
+            break
+    visualizer.stop()
     print("Capture module executed successfully.")

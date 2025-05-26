@@ -26,7 +26,7 @@ class RealSenseCapture:
     Handy to capture: BGR color images, Depth images, Point clouds, Infrared (IR) pattern images (left and right)
     """
 
-    def __init__(self, width: int = 1280, height: int = 720, fps: int = 30, dec_magnitude: int = 1):
+    def __init__(self, width: int = 1280, height: int = 720, fps: int = 30, dec_magnitude: int = 2):
         """
         Initializes the RealSense pipeline with specified resolution and frame rate.
         """
