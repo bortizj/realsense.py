@@ -58,6 +58,9 @@ class RealSenseCapture:
         self.depth_sensor = self.device.first_depth_sensor()
         self.depth_scale = self.depth_sensor.get_depth_scale()
 
+        # Getting the serial number of the camera
+        self.serial_number = self.device.get_info(rs.camera_info.serial_number)
+
         # Create an align which aligns depth frames to a specific stream type (COLOR in this case)
         self.align = rs.align(rs.stream.color)
 
