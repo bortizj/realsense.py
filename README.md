@@ -30,11 +30,7 @@ Once you have your environment setup you can install the package and its require
 
 - [RealSense](https://dev.intelrealsense.com/docs/python2), [Numpy](https://numpy.org/), [opencv](https://opencv.org/), ...
 ```shell
-pip install pyrealsense2 numpy opencv-python open3d tqdm packaging psutil pandas
-```
-- You may also want to have [matplotlib](https://matplotlib.org/stable/install/index.html) for some debugging
-```shell
-conda install matplotlib
+pip install pyrealsense2 numpy scipy opencv-python open3d tqdm packaging psutil pandas matplotlib
 ```
 and
 - the package itself

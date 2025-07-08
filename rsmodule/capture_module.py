@@ -23,10 +23,17 @@ class RealSenseCapture:
     """
     Object to capture the various data types from an Intel RealSense camera.
 
-    Handy to capture: BGR color images, Depth images, Point clouds, Infrared (IR) pattern images (left and right)
+    Handy to capture: BGR color images, Depth images, Point clouds, Infrared
+    (IR) pattern images (left and right)
     """
 
-    def __init__(self, width: int = 1280, height: int = 720, fps: int = 30, dec_magnitude: int = 2):
+    def __init__(
+        self,
+        width: int = 1280,
+        height: int = 720,
+        fps: int = 30,
+        dec_magnitude: int = 2,
+    ):
         """
         Initializes the RealSense pipeline with specified resolution and frame rate.
         """
