@@ -18,6 +18,8 @@ author: Benhur Ortiz-Jaramillo
 import pyrealsense2 as rs
 import numpy as np
 
+from rsmodule import CameraIntrinsics
+
 
 class RealSenseCapture:
     """
@@ -69,7 +71,10 @@ class RealSenseCapture:
         self.decimate = rs.decimation_filter()
         self.decimate.set_option(rs.option.filter_magnitude, dec_magnitude)
 
-        print(f"Info: RealSense pipeline initialized with resolution {width:d}x{height:d} at {fps:d} fps.")
+        # Getting the camera intrinsics and distortion coefficients
+        self.compute_intrinsics_and_dist_coefficients()
+
+        print(f"[INFO]: RealSense pipeline initialized with resolution {width:d}x{height:d} at {fps:d} fps.")
 
     def get_frame_data(self) -> dict:
         """
@@ -121,6 +126,39 @@ class RealSenseCapture:
             data["ir_right"] = np.asanyarray(ir_right_frame.get_data())
 
         return data
+
+    def compute_intrinsics_and_dist_coefficients(self):
+        """
+        Retrieves camera intrinsics from the RealSense pipeline
+        """
+        color_profile = rs.video_stream_profile(self.profile.get_stream(rs.stream.color))
+        intrinsics = color_profile.get_intrinsics()
+
+        # Getting camera intrinsics and distortion coefficients
+        self.dist_coeffs = np.array(intrinsics.coeffs, dtype=np.float32)
+        self.fx, self.fy = intrinsics.fx, intrinsics.fy
+        self.cx, self.cy = intrinsics.ppx, intrinsics.ppy
+        self.w, self.h = intrinsics.width, intrinsics.height
+
+        print(f"[INFO]: Camera Intrinsics: fx: {self.fx}, fy: {self.fy}, cx: {self.cx}, cy: {self.cy}")
+
+    def get_intrinsics(self):
+        """
+        Returns the camera intrinsics
+        """
+        return CameraIntrinsics(self.fx, self.fy, self.cx, self.cy, self.w, self.h)
+
+    def get_serial_number(self):
+        """
+        Returns the serial number of the camera
+        """
+        return self.serial_number
+
+    def get_dist_coefficients(self):
+        """
+        Returns the distortion coefficients of the camera
+        """
+        return self.dist_coeffs
 
     def stop(self):
         """

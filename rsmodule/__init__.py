@@ -18,6 +18,10 @@ author: Benhur Ortiz-Jaramillo
 import os
 from pathlib import Path
 
+from collections import namedtuple
+
+CameraIntrinsics = namedtuple("CameraIntrinsics", ["fx", "fy", "cx", "cy", "w", "h"])
+
 PKG_ROOT = Path(__file__).parent
 REPO_ROOT = Path(__file__).parent.parent
 EXPERIMENTS_DEBUG = os.environ.get("RSMODULE_DEBUG") is not None
