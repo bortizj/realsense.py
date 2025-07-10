@@ -74,7 +74,8 @@ class RealSenseCapture:
         # Getting the camera intrinsics and distortion coefficients
         self.compute_intrinsics_and_dist_coefficients()
 
-        print(f"[INFO]: RealSense pipeline initialized with resolution {width:d}x{height:d} at {fps:d} fps.")
+        sn = self.serial_number
+        print(f"[INFO]: RealSense SN: {sn} initialized with resolution {width}x{height} at {fps} FPS.")
 
     def get_frame_data(self) -> dict:
         """
