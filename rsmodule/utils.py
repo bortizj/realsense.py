@@ -22,8 +22,8 @@ import copy
 def combine_point_clouds(
     global_map_pcd: o3d.geometry.PointCloud,
     current_pcd: o3d.geometry.PointCloud,
-    current_voxel_size: float = 0.02,
-    global_voxel_size: float = 0.05,
+    current_voxel_size: float = 0.01,
+    global_voxel_size: float = 0.02,
     downsample_interval: int = 10,
     merge_count: int = 0,
 ) -> tuple[o3d.geometry.PointCloud, int]:
