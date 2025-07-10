@@ -31,12 +31,22 @@ class VisualSLAM:
     Object to perform Visual SLAM using Intel RealSense camera data.
     """
 
-    def __init__(self, width: int = 640, height: int = 480, fps: int = 30, nmatches: int = 200):
+    def __init__(
+        self,
+        width: int = 640,
+        height: int = 480,
+        fps: int = 30,
+        nmatches: int = 200,
+        global_voxel_size: float = 0.01,
+        current_voxel_size: float = 0.01,
+    ):
         # Initialize the RealSense camera capture
         self.nmatches = nmatches
         self.width = width
         self.height = height
         self.fps = fps
+        self.global_voxel_size = global_voxel_size
+        self.current_voxel_size = current_voxel_size
         self.capture = RealSenseCapture(width=width, height=height, fps=fps)
 
         # Camera Intrinsics (will be populated from RealSense)
@@ -58,14 +68,6 @@ class VisualSLAM:
         # Add a coordinate frame for the current camera pose
         self.camera_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.1, origin=[0, 0, 0])
         self.vis.add_geometry(self.camera_frame)
-
-        # View Control settings for better visualization
-        view_control = self.vis.get_view_control()
-        view_control.set_zoom(0.5)
-        # Initial view: looking down slightly onto the scene, from a distance
-        view_control.set_front([0.5, -0.8, -0.5])
-        view_control.set_up([0, 0.5, -0.5])
-        view_control.set_lookat([0, 0, 1])
 
         # Feature detector ORB and brute force matcher for the visual odometry
         self.orb = cv2.ORB_create(nfeatures=2000, scaleFactor=1.2, nlevels=8, edgeThreshold=31)
@@ -229,7 +231,8 @@ class VisualSLAM:
 
             if frame_idx == 0:
                 # First frame: Initialize global map and current camera pose
-                self.global_map_pcd = copy.deepcopy(current_o3d_pcd_with_color)
+                self.global_map_pcd.points = current_o3d_pcd_with_color.points
+                self.global_map_pcd.colors = current_o3d_pcd_with_color.colors
                 # Set the initial camera pose to identity or origin of the world
                 self.current_camera_pose = np.eye(4)
                 self.vis.update_geometry(self.global_map_pcd)
@@ -251,11 +254,23 @@ class VisualSLAM:
                     transformed_pcd = current_o3d_pcd_with_color.transform(self.current_camera_pose)
 
                     # Merge with global map
-                    self.global_map_pcd, merge_count = combine_point_clouds(
-                        self.global_map_pcd, transformed_pcd, merge_count=merge_count
+                    merged_pcd, merge_count = combine_point_clouds(
+                        self.global_map_pcd,
+                        transformed_pcd,
+                        merge_count=merge_count,
+                        global_voxel_size=self.global_voxel_size,
+                        current_voxel_size=self.current_voxel_size,
                     )
 
+                    # Updating the data from the point cloud for visualization this is necessary
+                    self.global_map_pcd.clear()
+                    self.global_map_pcd.points = merged_pcd.points
+                    self.global_map_pcd.colors = merged_pcd.colors
+                    self.global_map_pcd.normals = merged_pcd.normals
+
+                    self.camera_frame.transform(self.current_camera_pose)
                     self.vis.update_geometry(self.global_map_pcd)
+                    self.vis.update_geometry(self.camera_frame)
                 else:
                     print(f"[Error]: Pose estimation failed for frame {frame_idx}. Skipping integration.")
 

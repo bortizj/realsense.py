@@ -15,21 +15,29 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 author: Benhur Ortiz-Jaramillo
 """
 
-from rsmodule.capture_module import RealSenseCapture
+# import cv2
 
-from rsmodule.visualization import RealSenseVisualizer
+# from rsmodule.capture_module import RealSenseCapture
+# from rsmodule.visualization import RealSenseVisualizer
 
-import cv2
+from rsmodule.visual_odometry_slam import VisualSLAM
 
 
 if __name__ == "__main__":
-    capture = RealSenseCapture()
-    visualizer = RealSenseVisualizer()
+    slam_system = VisualSLAM()
+    slam_system.run()
 
-    while True:
-        data = capture.get_frame_data()
-        visualizer.update(data)
-        if cv2.waitKey(50) & 0xFF == ord("q"):
-            break
-    visualizer.stop()
-    print("Capture module executed successfully.")
+    # capture = RealSenseCapture()
+    # visualizer = RealSenseVisualizer()
+
+    # print(capture.get_intrinsics())
+    # print(capture.get_serial_number())
+    # print(capture.get_dist_coefficients())
+
+    # while True:
+    #     data = capture.get_frame_data()
+    #     visualizer.update(data)
+    #     if cv2.waitKey(50) & 0xFF == ord("q"):
+    #         break
+    # visualizer.stop()
+    # print("Capture module executed successfully.")
