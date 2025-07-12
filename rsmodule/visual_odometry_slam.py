@@ -22,7 +22,6 @@ import time
 
 import copy
 
-from rsmodule.capture_module import RealSenseCapture
 from rsmodule.o3d_processing import combine_point_clouds
 
 
@@ -33,70 +32,42 @@ class VisualSLAM:
 
     def __init__(
         self,
-        width: int = 640,
-        height: int = 480,
-        fps: int = 30,
+        cam_int: tuple,
+        dist_coeffs: np.ndarray = np.zeros((5,)),
         nmatches: int = 200,
         global_voxel_size: float = 0.005,
         current_voxel_size: float = 0.005,
     ):
-        # Initialize the RealSense camera capture
+        # Camera Intrinsics for calibration
+        self.dist_coeffs = dist_coeffs
+        self.fx, self.fy, self.cx, self.cy, self.width, self.height = cam_int
+        self.intrinsic = o3d.camera.PinholeCameraIntrinsic(self.width, self.height, self.fx, self.fy, self.cx, self.cy)
+
+        # Camera matrix (intrinsics) for OpenCV PnP and the distortion coefficients
+        self.camera_matrix = np.array([[self.fx, 0, self.cx], [0, self.fy, self.cy], [0, 0, 1]], dtype=np.float32)
+        self.dist_coeffs = self.dist_coeffs.reshape((1, 5))
+
+        # Initialize the parameters for the SLAM system
         self.nmatches = nmatches
-        self.width = width
-        self.height = height
-        self.fps = fps
         self.global_voxel_size = global_voxel_size
         self.current_voxel_size = current_voxel_size
-        self.capture = RealSenseCapture(width=width, height=height, fps=fps)
-
-        # Camera Intrinsics (will be populated from RealSense)
-        self._get_realsense_intrinsics()
 
         # Global map point cloud
         self.global_map_pcd = o3d.geometry.PointCloud()
+        self.search_param = o3d.geometry.KDTreeSearchParamHybrid(radius=0.1, max_nn=30)
         self.current_camera_pose = np.eye(4)
-
-        # Open3D Visualizer
-        self.vis = o3d.visualization.Visualizer()
-        self.vis.create_window(window_name="RealSense SLAM", width=self.width, height=self.height)
-
-        # Get the view control
-        self.view_ctl = self.vis.get_view_control()
-
-        # Set the camera to look at the center of the object
-        self.view_ctl.set_lookat([0, 0, 0])
-
-        # Add a coordinate frame for the world origin
-        self.origin_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.2, origin=[0, 0, 0])
-        self.vis.add_geometry(self.origin_frame)
-        self.vis.add_geometry(self.global_map_pcd)
-
-        # Add a coordinate frame for the current camera pose
-        self.camera_frame_base = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.15, origin=[0, 0, 0])
-        self.camera_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.15, origin=[0, 0, 0])
-        self.vis.add_geometry(self.camera_frame)
 
         # For camera trajectory visualization
         self.camera_trajectory_points = []
-        self.camera_trajectory_lines = o3d.geometry.LineSet()
-        self.vis.add_geometry(self.camera_trajectory_lines)
 
         # Feature detector ORB and brute force matcher for the visual odometry
         self.orb = cv2.ORB_create(nfeatures=2000, scaleFactor=1.2, nlevels=8, edgeThreshold=31)
         self.bf_matcher = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
 
+        # Last frame data for pose estimation
+        self.last_frame_data = None
+
         print("[INFO]: Visual SLAM system initialized.")
-
-    def _get_realsense_intrinsics(self):
-        """
-        Retrieves camera intrinsics from the RealSense pipeline
-        """
-        self.dist_coeffs = self.capture.get_dist_coefficients()
-        cam_int = self.capture.get_intrinsics()
-        self.fx, self.fy, self.cx, self.cy, self.width, self.height = cam_int
-        self.intrinsic = o3d.camera.PinholeCameraIntrinsic(self.width, self.height, self.fx, self.fy, self.cx, self.cy)
-
-        print(f"[INFO]: Camera Intrinsics: {self.intrinsic}")
 
     def _project_2d_into_3d(self, u: int, v: int, depth: float) -> np.ndarray:
         """
@@ -113,8 +84,7 @@ class VisualSLAM:
 
     def _estimate_pose_from_features(self, prev_frame_data: dict, curr_frame_data: dict) -> np.ndarray:
         """
-        Estimates the relative pose (T_curr_prev) from previous to current frame
-        using feature matching and RANSAC PnP.
+        Estimates the relative pose (T_curr_prev) from previous to current frame using feature matching and RANSAC PnP.
         """
         prev_bgr = prev_frame_data["bgr_image"]
         curr_bgr = curr_frame_data["bgr_image"]
@@ -163,7 +133,7 @@ class VisualSLAM:
             p3d = self._project_2d_into_3d(u1, v1, depth_at_prev_kp)
 
             # Only use valid 3D points (i.e., where depth is not 0 or invalid)
-            if p3d[2] > 0.01 and p3d[2] < 10.0:
+            if p3d[2] > 0.01 and p3d[2] < 5.0:
                 points3D_prev.append(p3d)
                 points2D_curr.append((u2, v2))
 
@@ -174,18 +144,12 @@ class VisualSLAM:
         points3D_prev = np.array(points3D_prev, dtype=np.float32)
         points2D_curr = np.array(points2D_curr, dtype=np.float32)
 
-        # Camera matrix (intrinsics) for OpenCV PnP and the distortion coefficients
-        camera_matrix = np.array([[self.fx, 0, self.cx], [0, self.fy, self.cy], [0, 0, 1]], dtype=np.float32)
-        dist_coeffs = self.dist_coeffs.reshape((1, 5))
-
         # Solve PnP using RANSAC for robust estimation
-        # rvec: rotation vector (Rodrigues), tvec: translation vector
-        # inliers: mask of inlier points
         success, rvec, tvec, inliers = cv2.solvePnPRansac(
             objectPoints=points3D_prev,
             imagePoints=points2D_curr,
-            cameraMatrix=camera_matrix,
-            distCoeffs=dist_coeffs,
+            cameraMatrix=self.camera_matrix,
+            distCoeffs=self.dist_coeffs,
             reprojectionError=3.0,
             iterationsCount=100,
         )
@@ -205,134 +169,62 @@ class VisualSLAM:
 
         return T_curr_prev
 
-    def run(self):
-        last_frame_data = None
-        frame_idx = 0
-        merge_count = 0
+    def process_frame_data(self, curr_frame_data: dict, merge_count: int):
+        current_raw_pcd_numpy = curr_frame_data["point_cloud"]
+        current_bgr_colors = curr_frame_data["point_bgr_colors"]
 
-        while True:
-            curr_frame_data = self.capture.get_frame_data()
-            bgr_image = curr_frame_data["bgr_image"]
-            depth_image_meters = curr_frame_data["depth_image"]
-            current_raw_pcd_numpy = curr_frame_data["point_cloud"]  # The (N, 3) numpy array point cloud
+        current_o3d_pcd_with_color = o3d.geometry.PointCloud()
+        current_o3d_pcd_with_color.points = o3d.utility.Vector3dVector(current_raw_pcd_numpy)
+        current_o3d_pcd_with_color.colors = o3d.utility.Vector3dVector(current_bgr_colors)
+        current_o3d_pcd_with_color.estimate_normals(search_param=self.search_param)
 
-            if bgr_image is None or depth_image_meters is None or current_raw_pcd_numpy is None:
-                print("Skipping frame: Missing data.")
-                continue
+        if self.last_frame_data is None:
+            # First frame: Initialize global map and current camera pose
+            self.global_map_pcd.points = current_o3d_pcd_with_color.points
+            self.global_map_pcd.colors = current_o3d_pcd_with_color.colors
+            # Set the initial camera pose to identity or origin of the world
+            self.current_camera_pose = np.eye(4)
 
-            # Create RGBD Image to get colors
-            rgb_image = cv2.cvtColor(bgr_image, cv2.COLOR_BGR2RGB)
-            depth_image_mm = (depth_image_meters * 1000).astype(np.uint16)
+            self.camera_trajectory_points.append(self.current_camera_pose[:3, 3])
 
-            o3d_color_img = o3d.geometry.Image(rgb_image)
-            o3d_depth_img = o3d.geometry.Image(depth_image_mm)
+            print("[INFO]: Initialized global map with first frame")
+        else:
+            # Subsequent frames: Estimate pose and integrate into map
+            start_time_pose = time.time()
+            # T_curr_prev transforms points from the previous camera frame to the current camera frame.
+            T_curr_prev = self._estimate_pose_from_features(self.last_frame_data, curr_frame_data)
+            end_time_pose = time.time()
+            print(f"[INFO]: Pose estimation took: {(end_time_pose - start_time_pose) * 1000:.2f} ms")
 
-            o3d_rgbd_image = o3d.geometry.RGBDImage.create_from_color_and_depth(
-                o3d_color_img, o3d_depth_img, depth_scale=1000.0, convert_rgb_to_intensity=False
-            )
+            if T_curr_prev is not None:
+                # Update global camera pose: T_world_current = T_world_previous @ T_previous_current
+                # Note that T_previous_current is inv(T_current_previous)
+                self.current_camera_pose = self.current_camera_pose @ np.linalg.inv(T_curr_prev)
 
-            # Generate PCD from RGBDImage for accurate color-point mapping
-            current_o3d_pcd_with_color = o3d.geometry.PointCloud.create_from_rgbd_image(o3d_rgbd_image, self.intrinsic)
-            # Filter out invalid points
-            current_o3d_pcd_with_color = current_o3d_pcd_with_color.remove_statistical_outlier(
-                nb_neighbors=20, std_ratio=2.0
-            )[0]
-            current_o3d_pcd_with_color.estimate_normals(
-                search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=0.1, max_nn=30)
-            )
-
-            transform_matrix = np.array([[1, 0, 0, 0], [0, -1, 0, 0], [0, 0, -1, 0], [0, 0, 0, 1]])
-            current_o3d_pcd_with_color.transform(transform_matrix)
-
-            if frame_idx == 0:
-                # First frame: Initialize global map and current camera pose
-                self.global_map_pcd.points = current_o3d_pcd_with_color.points
-                self.global_map_pcd.colors = current_o3d_pcd_with_color.colors
-                # Set the initial camera pose to identity or origin of the world
-                self.current_camera_pose = np.eye(4)
-                self.vis.update_geometry(self.global_map_pcd)
-
+                # Add current camera position to trajectory
                 self.camera_trajectory_points.append(self.current_camera_pose[:3, 3])
 
-                print("[INFO]: Initialized global map with first frame")
+                # Transform the current point cloud to the global coordinate system
+                transformed_pcd = current_o3d_pcd_with_color.transform(self.current_camera_pose)
+
+                # Merge with global map
+                merged_pcd, merge_count = combine_point_clouds(
+                    self.global_map_pcd,
+                    transformed_pcd,
+                    merge_count=merge_count,
+                    global_voxel_size=self.global_voxel_size,
+                    current_voxel_size=self.current_voxel_size,
+                )
+
+                # Updating the data from the point cloud
+                self.global_map_pcd.clear()
+                self.global_map_pcd.points = merged_pcd.points
+                self.global_map_pcd.colors = merged_pcd.colors
+                self.global_map_pcd.normals = merged_pcd.normals
+
             else:
-                # Subsequent frames: Estimate pose and integrate into map
-                start_time_pose = time.time()
-                # T_curr_prev transforms points from the previous camera frame to the current camera frame.
-                T_curr_prev = self._estimate_pose_from_features(last_frame_data, curr_frame_data)
-                end_time_pose = time.time()
-                print(f"[INFO]: Pose estimation took: {(end_time_pose - start_time_pose) * 1000:.2f} ms")
+                print("[Error]: Pose estimation failed for given frame. Skipping integration.")
 
-                if T_curr_prev is not None:
-                    # Update global camera pose: T_world_current = T_world_previous @ T_previous_current
-                    # Note that T_previous_current is inv(T_current_previous)
-                    self.current_camera_pose = self.current_camera_pose @ np.linalg.inv(T_curr_prev)
+        self.last_frame_data = copy.deepcopy(curr_frame_data)
 
-                    # Add current camera position to trajectory
-                    self.camera_trajectory_points.append(self.current_camera_pose[:3, 3])
-
-                    # Update the LineSet for visualization
-                    if len(self.camera_trajectory_points) > 1:
-                        points = np.array(self.camera_trajectory_points)
-                        lines = []
-                        colors = []
-                        for i in range(len(points) - 1):
-                            lines.append([i, i + 1])
-                            colors.append([1, 0, 0])
-
-                        self.camera_trajectory_lines.points = o3d.utility.Vector3dVector(points)
-                        self.camera_trajectory_lines.lines = o3d.utility.Vector2iVector(np.asarray(lines))
-                        self.camera_trajectory_lines.colors = o3d.utility.Vector3dVector(np.asarray(colors))
-
-                    # Transform the current point cloud to the global coordinate system
-                    transformed_pcd = current_o3d_pcd_with_color.transform(self.current_camera_pose)
-
-                    # Merge with global map
-                    merged_pcd, merge_count = combine_point_clouds(
-                        self.global_map_pcd,
-                        transformed_pcd,
-                        merge_count=merge_count,
-                        global_voxel_size=self.global_voxel_size,
-                        current_voxel_size=self.current_voxel_size,
-                    )
-
-                    # Updating the data from the point cloud for visualization this is necessary
-                    self.global_map_pcd.clear()
-                    self.global_map_pcd.points = merged_pcd.points
-                    self.global_map_pcd.colors = merged_pcd.colors
-                    self.global_map_pcd.normals = merged_pcd.normals
-
-                    # Copy the points, triangles, colors, and normals from the freshly transformed base
-                    transformed_base_frame = copy.deepcopy(self.camera_frame_base)
-                    transformed_base_frame.transform(self.current_camera_pose)
-                    self.camera_frame.vertices = transformed_base_frame.vertices
-                    self.camera_frame.triangles = transformed_base_frame.triangles
-                    if transformed_base_frame.has_vertex_normals():
-                        self.camera_frame.vertex_normals = transformed_base_frame.vertex_normals
-                    else:
-                        self.camera_frame.vertex_normals = o3d.utility.Vector3dVector()
-
-                    if transformed_base_frame.has_vertex_colors():
-                        self.camera_frame.vertex_colors = transformed_base_frame.vertex_colors
-                    else:
-                        self.camera_frame.vertex_colors = o3d.utility.Vector3dVector()
-
-                    self.vis.update_geometry(self.global_map_pcd)
-                    self.vis.update_geometry(self.camera_frame)
-                    self.vis.update_geometry(self.camera_trajectory_lines)
-                else:
-                    print(f"[Error]: Pose estimation failed for frame {frame_idx}. Skipping integration.")
-
-            self.vis.poll_events()
-            self.vis.update_renderer()
-
-            last_frame_data = copy.deepcopy(curr_frame_data)
-            frame_idx += 1
-
-            key = cv2.waitKey(1) & 0xFF
-            if key == ord("q"):
-                break
-
-        self.capture.stop()
-        self.vis.destroy_window()
-        print("[INFO]: SLAM process finished.")
+    print("[INFO]: SLAM process successful.")
