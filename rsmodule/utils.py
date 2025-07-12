@@ -17,6 +17,7 @@ author: Benhur Ortiz-Jaramillo
 
 import json
 import gzip
+import pickle
 
 
 def compress_dict(data_dict: dict) -> bytes:
@@ -35,5 +36,23 @@ def decompress_dict(compressed_data: bytes) -> dict:
     """
     decompressed_data = gzip.decompress(compressed_data)
     data_dict = json.loads(decompressed_data.decode("utf-8"))
+
+    return data_dict
+
+
+def pickle_to_bytes(data_dict: dict) -> bytes:
+    """
+    Pickles a dictionary into bytes
+    """
+    pickled_data = pickle.dumps(data_dict, protocol=pickle.HIGHEST_PROTOCOL)
+
+    return pickled_data
+
+
+def unpickle_from_bytes(pickled_data):
+    """
+    Unpickles data from a bytes object back into a dictionary
+    """
+    data_dict = pickle.loads(pickled_data)
 
     return data_dict

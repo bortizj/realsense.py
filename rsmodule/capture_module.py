@@ -16,9 +16,13 @@ author: Benhur Ortiz-Jaramillo
 """
 
 import pyrealsense2 as rs
+import threading
 import numpy as np
 
+from pathlib import Path
+
 from rsmodule import CameraIntrinsics
+from rsmodule.utils import pickle_to_bytes
 
 
 class RealSenseCapture:
@@ -35,6 +39,7 @@ class RealSenseCapture:
         height: int = 720,
         fps: int = 30,
         dec_magnitude: int = 2,
+        path_store: Path = Path(),
     ):
         """
         Initializes the RealSense pipeline with specified resolution and frame rate.
@@ -74,6 +79,16 @@ class RealSenseCapture:
         # Getting the camera intrinsics and distortion coefficients
         self.compute_intrinsics_and_dist_coefficients()
 
+        # The path to store captured data
+        self.frame_id = 0
+        self.is_storing = False
+        self.path_store = path_store
+        if not self.path_store.exists():
+            self.path_store = None
+            print(f"[Error]: Data path {self.path_store} does not exist. Data will not be stored.")
+
+        self.store_camera_data()
+
         sn = self.serial_number
         print(f"[INFO]: RealSense SN: {sn} initialized with resolution {width}x{height} at {fps} FPS.")
 
@@ -102,12 +117,15 @@ class RealSenseCapture:
             "bgr_image": None,
             "depth_image": None,
             "point_cloud": None,
+            "point_bgr_colors": None,
             "ir_left": None,
             "ir_right": None,
         }
 
         if color_frame:
             data["bgr_image"] = np.asanyarray(color_frame.get_data())
+        else:
+            print("[Warning]: No color frame captured.")
 
         if depth_frame:
             # Convert depth to meters
@@ -119,14 +137,70 @@ class RealSenseCapture:
             # Reshape to (N, 3) for X, Y, Z coordinates
             if vtx.size > 0:
                 data["point_cloud"] = vtx.view(np.float32).reshape(-1, 3)
+                data["point_bgr_colors"] = data["bgr_image"].reshape(-1, 3) / 255.0
+        else:
+            print("[Warning]: No depth frame captured.")
 
         if ir_left_frame:
             data["ir_left"] = np.asanyarray(ir_left_frame.get_data())
+        else:
+            print("[Warning]: No left infrared frame captured.")
 
         if ir_right_frame:
             data["ir_right"] = np.asanyarray(ir_right_frame.get_data())
+        else:
+            print("[Warning]: No right infrared frame captured.")
 
         return data
+
+    def get_and_store_frame_data(self):
+        """
+        Captures the latest frames and stores them in a file
+        """
+        data = self.get_frame_data()
+        if self.path_store is not None:
+            if not self.is_storing:
+                self.is_storing = True
+                current_frame_id = self.frame_id
+                path_store = self.path_store
+                self.frame_id += 1
+                self.store_thread = threading.Thread(
+                    target=self._store_data_async, args=(data, current_frame_id, path_store)
+                )
+                self.store_thread.start()
+            else:
+                print("[INFO]: Already storing data. Skipping this frame.")
+
+        return data
+
+    def _store_data_async(self, data, current_frame_id, path_store):
+        """
+        Internal function to handle the actual storage in a separate thread
+        """
+        try:
+            bytes_data = pickle_to_bytes(data)
+            with open(path_store.joinpath(f"id_{current_frame_id}.gz"), "wb") as file:
+                file.write(bytes_data)
+        except Exception as e:
+            print(f"[ERROR]: Failed to store frame data id_{current_frame_id}.gz: {e}")
+        finally:
+            self.is_storing = False
+            print(f"[INFO]: Frame data stored as id_{current_frame_id}.gz")
+
+    def store_camera_data(self):
+        """
+        Stores the camera intrinsics and distortion coefficients in a file
+        """
+        if self.path_store is not None:
+            camera_data = {
+                "intrinsics": self.get_intrinsics(),
+                "dist_coefficients": self.get_dist_coefficients(),
+                "serial_number": self.get_serial_number(),
+            }
+            bytes_data = pickle_to_bytes(camera_data)
+            with open(self.path_store.joinpath("camera_data.gz"), "wb") as file:
+                file.write(bytes_data)
+                print("[INFO]: Camera data stored successfully.")
 
     def compute_intrinsics_and_dist_coefficients(self):
         """
