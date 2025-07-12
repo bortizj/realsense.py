@@ -37,8 +37,8 @@ class VisualSLAM:
         height: int = 480,
         fps: int = 30,
         nmatches: int = 200,
-        global_voxel_size: float = 0.01,
-        current_voxel_size: float = 0.01,
+        global_voxel_size: float = 0.005,
+        current_voxel_size: float = 0.005,
     ):
         # Initialize the RealSense camera capture
         self.nmatches = nmatches
@@ -60,14 +60,26 @@ class VisualSLAM:
         self.vis = o3d.visualization.Visualizer()
         self.vis.create_window(window_name="RealSense SLAM", width=self.width, height=self.height)
 
+        # Get the view control
+        self.view_ctl = self.vis.get_view_control()
+
+        # Set the camera to look at the center of the object
+        self.view_ctl.set_lookat([0, 0, 0])
+
         # Add a coordinate frame for the world origin
-        self.origin_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.5, origin=[0, 0, 0])
+        self.origin_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.2, origin=[0, 0, 0])
         self.vis.add_geometry(self.origin_frame)
         self.vis.add_geometry(self.global_map_pcd)
 
         # Add a coordinate frame for the current camera pose
-        self.camera_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.1, origin=[0, 0, 0])
+        self.camera_frame_base = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.15, origin=[0, 0, 0])
+        self.camera_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.15, origin=[0, 0, 0])
         self.vis.add_geometry(self.camera_frame)
+
+        # For camera trajectory visualization
+        self.camera_trajectory_points = []
+        self.camera_trajectory_lines = o3d.geometry.LineSet()
+        self.vis.add_geometry(self.camera_trajectory_lines)
 
         # Feature detector ORB and brute force matcher for the visual odometry
         self.orb = cv2.ORB_create(nfeatures=2000, scaleFactor=1.2, nlevels=8, edgeThreshold=31)
@@ -236,6 +248,9 @@ class VisualSLAM:
                 # Set the initial camera pose to identity or origin of the world
                 self.current_camera_pose = np.eye(4)
                 self.vis.update_geometry(self.global_map_pcd)
+
+                self.camera_trajectory_points.append(self.current_camera_pose[:3, 3])
+
                 print("[INFO]: Initialized global map with first frame")
             else:
                 # Subsequent frames: Estimate pose and integrate into map
@@ -249,6 +264,22 @@ class VisualSLAM:
                     # Update global camera pose: T_world_current = T_world_previous @ T_previous_current
                     # Note that T_previous_current is inv(T_current_previous)
                     self.current_camera_pose = self.current_camera_pose @ np.linalg.inv(T_curr_prev)
+
+                    # Add current camera position to trajectory
+                    self.camera_trajectory_points.append(self.current_camera_pose[:3, 3])
+
+                    # Update the LineSet for visualization
+                    if len(self.camera_trajectory_points) > 1:
+                        points = np.array(self.camera_trajectory_points)
+                        lines = []
+                        colors = []
+                        for i in range(len(points) - 1):
+                            lines.append([i, i + 1])
+                            colors.append([1, 0, 0])
+
+                        self.camera_trajectory_lines.points = o3d.utility.Vector3dVector(points)
+                        self.camera_trajectory_lines.lines = o3d.utility.Vector2iVector(np.asarray(lines))
+                        self.camera_trajectory_lines.colors = o3d.utility.Vector3dVector(np.asarray(colors))
 
                     # Transform the current point cloud to the global coordinate system
                     transformed_pcd = current_o3d_pcd_with_color.transform(self.current_camera_pose)
@@ -268,24 +299,40 @@ class VisualSLAM:
                     self.global_map_pcd.colors = merged_pcd.colors
                     self.global_map_pcd.normals = merged_pcd.normals
 
-                    self.camera_frame.transform(self.current_camera_pose)
+                    # Copy the points, triangles, colors, and normals from the freshly transformed base
+                    transformed_base_frame = copy.deepcopy(self.camera_frame_base)
+                    transformed_base_frame.transform(self.current_camera_pose)
+                    self.camera_frame.vertices = transformed_base_frame.vertices
+                    self.camera_frame.triangles = transformed_base_frame.triangles
+                    if transformed_base_frame.has_vertex_normals():
+                        self.camera_frame.vertex_normals = transformed_base_frame.vertex_normals
+                    else:
+                        self.camera_frame.vertex_normals = o3d.utility.Vector3dVector()
+
+                    if transformed_base_frame.has_vertex_colors():
+                        self.camera_frame.vertex_colors = transformed_base_frame.vertex_colors
+                    else:
+                        self.camera_frame.vertex_colors = o3d.utility.Vector3dVector()
+
                     self.vis.update_geometry(self.global_map_pcd)
                     self.vis.update_geometry(self.camera_frame)
+                    self.vis.update_geometry(self.camera_trajectory_lines)
                 else:
                     print(f"[Error]: Pose estimation failed for frame {frame_idx}. Skipping integration.")
 
-            # Update camera frame visualization
-            self.camera_frame.transform(self.current_camera_pose)
-            self.vis.update_geometry(self.camera_frame)
-
             # Visualizer Update
+            # center = self.global_map_pcd.get_axis_aligned_bounding_box().get_center()
+            # self.view_ctl.set_lookat(center)
+            # self.view_ctl.set_front([-0.5, -0.5, -0.8])
+            # self.view_ctl.set_up([0, 1, 0])
+            # self.view_ctl.set_zoom(0.8)
             self.vis.poll_events()
             self.vis.update_renderer()
 
             last_frame_data = copy.deepcopy(curr_frame_data)
             frame_idx += 1
 
-            key = cv2.waitKey(1) & 0xFF
+            key = cv2.waitKey(100) & 0xFF
             if key == ord("q"):
                 break
 
