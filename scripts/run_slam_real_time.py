@@ -19,11 +19,13 @@ from pathlib import Path
 
 from rsmodule.capture_module import RealSenseCapture
 from rsmodule.visual_odometry_slam import VisualSLAM
+from rsmodule.visualization import SLAMVisualizer
 
 
 if __name__ == "__main__":
-    slam_system = VisualSLAM()
-    capture = RealSenseCapture(path_store=Path(r"E:\gitProjects\test_folder"))
+    capture = RealSenseCapture(width=640, height=480, path_store=Path(r"E:\gitProjects\test_folder"))
+    slam_system = VisualSLAM(capture.get_intrinsics(), dist_coeffs=capture.get_dist_coefficients())
+    slam_visualizer = SLAMVisualizer()
 
     # For now infinitely run the SLAM system
     # In the future, this will be replaced with a more sophisticated loop
@@ -31,6 +33,9 @@ if __name__ == "__main__":
     while True:
         data = capture.get_and_store_frame_data()
         slam_system.process_frame_data(data, merge_count)
+        slam_visualizer.update(
+            slam_system.global_map_pcd, slam_system.current_camera_pose, slam_system.camera_trajectory_points
+        )
 
     # Waiting for the store thread to finish if it is alive
     if capture.store_thread and capture.store_thread.is_alive():

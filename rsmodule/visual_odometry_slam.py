@@ -217,6 +217,7 @@ class VisualSLAM:
 
             self.camera_trajectory_points.append(self.current_camera_pose[:3, 3])
 
+            self.last_frame_data = copy.deepcopy(curr_frame_data)
             print("[INFO]: Initialized global map with first frame")
         else:
             # Subsequent frames: Estimate pose and integrate into map
