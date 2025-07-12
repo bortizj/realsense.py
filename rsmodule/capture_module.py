@@ -92,6 +92,9 @@ class RealSenseCapture:
         sn = self.serial_number
         print(f"[INFO]: RealSense SN: {sn} initialized with resolution {width}x{height} at {fps} FPS.")
 
+    def __del__(self):
+        self.stop()
+
     def get_frame_data(self) -> dict:
         """
         Captures and returns the latest frames from the RealSense camera.
