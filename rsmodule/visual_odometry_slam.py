@@ -23,7 +23,7 @@ import time
 import copy
 
 from rsmodule.capture_module import RealSenseCapture
-from rsmodule.utils import combine_point_clouds
+from rsmodule.o3d_processing import combine_point_clouds
 
 
 class VisualSLAM:
@@ -241,6 +241,9 @@ class VisualSLAM:
                 search_param=o3d.geometry.KDTreeSearchParamHybrid(radius=0.1, max_nn=30)
             )
 
+            transform_matrix = np.array([[1, 0, 0, 0], [0, -1, 0, 0], [0, 0, -1, 0], [0, 0, 0, 1]])
+            current_o3d_pcd_with_color.transform(transform_matrix)
+
             if frame_idx == 0:
                 # First frame: Initialize global map and current camera pose
                 self.global_map_pcd.points = current_o3d_pcd_with_color.points
@@ -320,19 +323,13 @@ class VisualSLAM:
                 else:
                     print(f"[Error]: Pose estimation failed for frame {frame_idx}. Skipping integration.")
 
-            # Visualizer Update
-            # center = self.global_map_pcd.get_axis_aligned_bounding_box().get_center()
-            # self.view_ctl.set_lookat(center)
-            # self.view_ctl.set_front([-0.5, -0.5, -0.8])
-            # self.view_ctl.set_up([0, 1, 0])
-            # self.view_ctl.set_zoom(0.8)
             self.vis.poll_events()
             self.vis.update_renderer()
 
             last_frame_data = copy.deepcopy(curr_frame_data)
             frame_idx += 1
 
-            key = cv2.waitKey(100) & 0xFF
+            key = cv2.waitKey(1) & 0xFF
             if key == ord("q"):
                 break
 
