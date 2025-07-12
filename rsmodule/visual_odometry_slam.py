@@ -19,6 +19,7 @@ import cv2
 import numpy as np
 import open3d as o3d
 import time
+import threading
 
 import copy
 
@@ -34,9 +35,9 @@ class VisualSLAM:
         self,
         cam_int: tuple,
         dist_coeffs: np.ndarray = np.zeros((5,)),
-        nmatches: int = 200,
-        global_voxel_size: float = 0.005,
-        current_voxel_size: float = 0.005,
+        nmatches: int = 100,
+        global_voxel_size: float = 0.001,
+        current_voxel_size: float = 0.001,
     ):
         # Camera Intrinsics for calibration
         self.dist_coeffs = dist_coeffs
@@ -66,6 +67,7 @@ class VisualSLAM:
 
         # Last frame data for pose estimation
         self.last_frame_data = None
+        self.is_processing = False
 
         print("[INFO]: Visual SLAM system initialized.")
 
@@ -151,7 +153,7 @@ class VisualSLAM:
             cameraMatrix=self.camera_matrix,
             distCoeffs=self.dist_coeffs,
             reprojectionError=3.0,
-            iterationsCount=100,
+            iterationsCount=500,
         )
 
         if not success:
@@ -170,6 +172,34 @@ class VisualSLAM:
         return T_curr_prev
 
     def process_frame_data(self, curr_frame_data: dict, merge_count: int):
+        """
+        The function to process the current frame data exposed to the user
+        """
+        if not self.is_processing:
+            self.is_processing = True
+            self.process_thread = threading.Thread(
+                target=self._process_frame_async, args=(curr_frame_data, merge_count)
+            )
+            self.process_thread.start()
+        else:
+            print("[INFO]: Already processing data. Skipping this frame.")
+
+    def _process_frame_async(self, curr_frame_data: dict, merge_count: int):
+        """
+        Internal function to handle the actual processing in a separate thread
+        """
+        try:
+            self._process_frame_data(curr_frame_data, merge_count)
+        except Exception as e:
+            print(f"[ERROR]: Failed to process frame data: {e}")
+        finally:
+            self.is_processing = False
+            print("[INFO]: Frame data processed")
+
+    def _process_frame_data(self, curr_frame_data: dict, merge_count: int):
+        """
+        Internal function to process the frame data
+        """
         current_raw_pcd_numpy = curr_frame_data["point_cloud"]
         current_bgr_colors = curr_frame_data["point_bgr_colors"]
 
@@ -222,9 +252,8 @@ class VisualSLAM:
                 self.global_map_pcd.colors = merged_pcd.colors
                 self.global_map_pcd.normals = merged_pcd.normals
 
+                # Updating last frame only if pose estimation was successful
+                self.last_frame_data = copy.deepcopy(curr_frame_data)
+                print("[INFO]: SLAM process successful.")
             else:
                 print("[Error]: Pose estimation failed for given frame. Skipping integration.")
-
-        self.last_frame_data = copy.deepcopy(curr_frame_data)
-
-    print("[INFO]: SLAM process successful.")
