@@ -15,37 +15,25 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 author: Benhur Ortiz-Jaramillo
 """
 
-import open3d as o3d
-import copy
+import json
+import gzip
 
 
-def combine_point_clouds(
-    global_map_pcd: o3d.geometry.PointCloud,
-    current_pcd: o3d.geometry.PointCloud,
-    current_voxel_size: float = 0.01,
-    global_voxel_size: float = 0.02,
-    downsample_interval: int = 10,
-    merge_count: int = 0,
-) -> tuple[o3d.geometry.PointCloud, int]:
-    # Down-sampling the current PCD before merging
-    if current_voxel_size > 0:
-        current_pcd_downsampled = current_pcd.voxel_down_sample(voxel_size=current_voxel_size)
-    else:
-        current_pcd_downsampled = copy.deepcopy(current_pcd)
+def compress_dict(data_dict: dict) -> bytes:
+    """
+    Serializes a dictionary to JSON and then compresses it using gzip
+    """
+    json_data = json.dumps(data_dict, ensure_ascii=False).encode("utf-8")
+    compressed_data = gzip.compress(json_data)
 
-    # Merge the current point cloud into the global map
-    updated_global_map_pcd = global_map_pcd + current_pcd_downsampled
-    merge_count += 1
+    return compressed_data
 
-    # Voxel grid down-sampling the entire global map periodically
-    if global_voxel_size > 0 and merge_count % downsample_interval == 0:
-        original_size = len(updated_global_map_pcd.points)
-        updated_global_map_pcd = updated_global_map_pcd.voxel_down_sample(voxel_size=global_voxel_size)
 
-        search_param = o3d.geometry.KDTreeSearchParamHybrid(radius=0.1, max_nn=30)
-        updated_global_map_pcd.estimate_normals(search_param=search_param)
+def decompress_dict(compressed_data: bytes) -> dict:
+    """
+    Decompresses gzipped data and then deserializes it from JSON
+    """
+    decompressed_data = gzip.decompress(compressed_data)
+    data_dict = json.loads(decompressed_data.decode("utf-8"))
 
-        updated_size = len(updated_global_map_pcd.points)
-        print(f"[INFO]: Global map down-sampled from {original_size} to {updated_size} points.")
-
-    return updated_global_map_pcd, merge_count
+    return data_dict
