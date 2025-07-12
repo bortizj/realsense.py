@@ -60,10 +60,11 @@ class RealSenseCapture:
         # Start pipeline
         self.profile = self.pipeline.start(self.config)
 
-        # Get device and depth sensor to align streams
+        # Get device, color depth sensor to align streams
         self.device = self.profile.get_device()
         self.depth_sensor = self.device.first_depth_sensor()
         self.depth_scale = self.depth_sensor.get_depth_scale()
+        self.color_sensor = self.device.first_color_sensor()
 
         # Getting the serial number of the camera
         self.serial_number = self.device.get_info(rs.camera_info.serial_number)
@@ -94,6 +95,16 @@ class RealSenseCapture:
 
     def __del__(self):
         self.stop()
+
+    def set_exposure(self, manual_color_exposure: int = 500):
+        """
+        Sets the exposure for both depth and color sensors
+        """
+        if self.color_sensor.supports(rs.option.exposure):
+            self.color_sensor.set_option(rs.option.exposure, manual_color_exposure)
+            print(f"Exposure set to {manual_color_exposure} for color sensor.")
+        else:
+            print("Color sensor does not support manual exposure control.")
 
     def get_frame_data(self) -> dict:
         """

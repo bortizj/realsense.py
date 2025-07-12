@@ -19,6 +19,7 @@ import open3d as o3d
 import numpy as np
 import copy
 import cv2
+import time
 
 
 class RealSenseVisualizer:
@@ -101,7 +102,6 @@ class SLAMVisualizer:
 
         # Add a coordinate frame for the world origin
         self.origin_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.15, origin=[0, 0, 0])
-        self.origin_frame.transform(self.transform_matrix)
 
         # Add a coordinate frame for the current camera pose
         self.camera_frame_base = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.15, origin=[0, 0, 0])
@@ -123,6 +123,7 @@ class SLAMVisualizer:
         """
         Updates the visualizer with new data
         """
+        start_time_pose = time.time()
         # Updating the data from the point cloud for visualization this is necessary
         self.global_map_pcd.clear()
         self.global_map_pcd.points = pcd.points
@@ -131,7 +132,6 @@ class SLAMVisualizer:
 
         # Updating the camera frame
         transformed_base_frame = copy.deepcopy(self.camera_frame_base)
-        transformed_base_frame.transform(self.transform_matrix)
         transformed_base_frame.transform(camera_pose)
         self.camera_frame_current.vertices = transformed_base_frame.vertices
         self.camera_frame_current.triangles = transformed_base_frame.triangles
@@ -159,11 +159,13 @@ class SLAMVisualizer:
             self.camera_trajectory_lines.colors = o3d.utility.Vector3dVector(np.asarray(colors))
 
         # Update the visualizer with the new geometries
-        self.global_map_pcd.transform(self.transform_matrix)
-        self.camera_trajectory_lines.transform(self.transform_matrix)
+        # self.global_map_pcd.transform(self.transform_matrix)
 
         self.vis.update_geometry(self.global_map_pcd)
         self.vis.update_geometry(self.camera_frame_current)
         self.vis.update_geometry(self.camera_trajectory_lines)
         self.vis.poll_events()
         self.vis.update_renderer()
+
+        end_time_pose = time.time()
+        print(f"[INFO]: Updating render took: {(end_time_pose - start_time_pose) * 1000:.2f} ms")
