@@ -25,6 +25,8 @@ import copy
 
 from rsmodule.o3d_processing import combine_point_clouds
 
+DEVICE = o3d.core.Device("cuda:0")
+
 
 class VisualSLAM:
     """
@@ -54,7 +56,7 @@ class VisualSLAM:
         self.current_voxel_size = current_voxel_size
 
         # Global map point cloud
-        self.global_map_pcd = o3d.geometry.PointCloud()
+        self.global_map_pcd = o3d.t.geometry.PointCloud()
         self.search_param = o3d.geometry.KDTreeSearchParamHybrid(radius=0.1, max_nn=30)
         self.current_camera_pose = np.eye(4)
 
@@ -154,7 +156,7 @@ class VisualSLAM:
             cameraMatrix=self.camera_matrix,
             distCoeffs=self.dist_coeffs,
             reprojectionError=3.0,
-            iterationsCount=500,
+            iterationsCount=200,
         )
 
         if not success:
@@ -180,8 +182,6 @@ class VisualSLAM:
             self.is_processing = True
             self.process_thread = threading.Thread(target=self._process_frame_async, args=(curr_frame_data,))
             self.process_thread.start()
-        else:
-            print("[INFO]: Already processing data. Skipping this frame.")
 
     def _process_frame_async(self, curr_frame_data: dict):
         """
@@ -193,39 +193,34 @@ class VisualSLAM:
             print(f"[ERROR]: Failed to process frame data: {e}")
         finally:
             self.is_processing = False
-            print("[INFO]: Frame data processed")
 
     def _process_frame_data(self, curr_frame_data: dict):
         """
         Internal function to process the frame data
         """
+        start_time_pose = time.time()
         current_raw_pcd_numpy = curr_frame_data["point_cloud"]
         current_bgr_colors = curr_frame_data["point_bgr_colors"][:, ::-1]
 
-        current_o3d_pcd_with_color = o3d.geometry.PointCloud()
-        current_o3d_pcd_with_color.points = o3d.utility.Vector3dVector(current_raw_pcd_numpy)
-        current_o3d_pcd_with_color.colors = o3d.utility.Vector3dVector(current_bgr_colors)
+        current_o3d_pcd_with_color = o3d.t.geometry.PointCloud()
+        current_o3d_pcd_with_color.points = o3d.core.Tensor(current_raw_pcd_numpy, o3d.core.Dtype.Float32, DEVICE)
+        current_o3d_pcd_with_color.colors = o3d.core.Tensor(current_bgr_colors, o3d.core.Dtype.Float32, DEVICE)
         current_o3d_pcd_with_color.estimate_normals(search_param=self.search_param)
 
         if self.last_frame_data is None:
             # First frame: Initialize global map and current camera pose
-            self.global_map_pcd.points = current_o3d_pcd_with_color.points
-            self.global_map_pcd.colors = current_o3d_pcd_with_color.colors
-            self.global_map_pcd.normals = current_o3d_pcd_with_color.normals
+            self.global_map_pcd = copy.deepcopy(current_o3d_pcd_with_color)
+
             # Set the initial camera pose to identity or origin of the world
             self.current_camera_pose = np.eye(4)
 
             self.camera_trajectory_points.append(self.current_camera_pose[:3, 3])
 
             self.last_frame_data = copy.deepcopy(curr_frame_data)
-            print("[INFO]: Initialized global map with first frame")
         else:
             # Subsequent frames: Estimate pose and integrate into map
-            start_time_pose = time.time()
             # T_curr_prev transforms points from the previous camera frame to the current camera frame.
             T_curr_prev = self._estimate_pose_from_features(self.last_frame_data, curr_frame_data)
-            end_time_pose = time.time()
-            print(f"[INFO]: Pose estimation took: {(end_time_pose - start_time_pose) * 1000:.2f} ms")
 
             if T_curr_prev is not None:
                 # Update global camera pose: T_world_current = T_world_previous @ T_previous_current
@@ -248,14 +243,13 @@ class VisualSLAM:
                 )
 
                 # Updating the data from the point cloud
-                self.global_map_pcd.clear()
-                self.global_map_pcd.points = merged_pcd.points
-                self.global_map_pcd.colors = merged_pcd.colors
-                self.global_map_pcd.normals = merged_pcd.normals
                 self.merge_count += 1
+
+                self.global_map_pcd = copy.deepcopy(merged_pcd)
 
                 # Updating last frame only if pose estimation was successful
                 self.last_frame_data = copy.deepcopy(curr_frame_data)
-                print("[INFO]: SLAM process successful.")
+                end_time_pose = time.time()
+                print(f"[INFO]: Frame SLAM process successful took: {(end_time_pose - start_time_pose) * 1000:.2f} ms")
             else:
                 print("[Error]: Pose estimation failed for given frame. Skipping integration.")

@@ -20,13 +20,13 @@ import copy
 
 
 def combine_point_clouds(
-    global_map_pcd: o3d.geometry.PointCloud,
-    current_pcd: o3d.geometry.PointCloud,
+    global_map_pcd: o3d.t.geometry.PointCloud,
+    current_pcd: o3d.t.geometry.PointCloud,
     current_voxel_size: float = 0.01,
     global_voxel_size: float = 0.02,
     downsample_interval: int = 10,
     merge_count: int = 0,
-) -> tuple[o3d.geometry.PointCloud, int]:
+) -> tuple[o3d.t.geometry.PointCloud, int]:
     # Down-sampling the current PCD before merging
     if current_voxel_size > 0:
         current_pcd_downsampled = current_pcd.voxel_down_sample(voxel_size=current_voxel_size)

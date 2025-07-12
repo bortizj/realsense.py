@@ -22,6 +22,9 @@ import cv2
 import time
 
 
+DEVICE = o3d.core.Device("cuda:0")
+
+
 class RealSenseVisualizer:
     """
     Convenient class to visualize images and point clouds from a RealSense camera.
@@ -91,59 +94,41 @@ class SLAMVisualizer:
 
     def __init__(self):
         # Open3D Visualizer
-        self.vis = o3d.visualization.Visualizer()
-        self.vis.create_window(window_name="SLAM Visualizer")
-
-        # The point cloud for the global map
-        self.global_map_pcd = o3d.geometry.PointCloud()
+        o3d.visualization.gui.Application.instance.initialize()
+        self.vis = o3d.visualization.O3DVisualizer("SLAM Visualizer", 960, 540)
+        self.vis.show_settings = True
 
         # Transformation matrix to align the visualizer with the camera coordinate system
         self.transform_matrix = np.array([[1, 0, 0, 0], [0, -1, 0, 0], [0, 0, -1, 0], [0, 0, 0, 1]])
 
         # Add a coordinate frame for the world origin
-        self.origin_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.15, origin=[0, 0, 0])
+        self.origin_frame = o3d.t.geometry.TriangleMesh.create_coordinate_frame(size=0.15, origin=[0, 0, 0])
 
         # Add a coordinate frame for the current camera pose
-        self.camera_frame_base = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.15, origin=[0, 0, 0])
-        self.camera_frame_current = o3d.geometry.TriangleMesh.create_coordinate_frame(size=0.15, origin=[0, 0, 0])
+        self.camera_frame_base = o3d.t.geometry.TriangleMesh.create_coordinate_frame(size=0.15, origin=[0, 0, 0])
+        self.camera_frame_current = o3d.t.geometry.TriangleMesh.create_coordinate_frame(size=0.15, origin=[0, 0, 0])
 
         # The line set for the camera trajectory
-        self.camera_trajectory_lines = o3d.geometry.LineSet()
+        self.camera_trajectory_lines = o3d.t.geometry.LineSet()
 
         # Adding the geometries to the visualizer
-        self.vis.add_geometry(self.origin_frame)
-        self.vis.add_geometry(self.global_map_pcd)
-        self.vis.add_geometry(self.camera_frame_current)
-        self.vis.add_geometry(self.camera_trajectory_lines)
+        self.vis.add_geometry("origin_frame", self.origin_frame)
+        self.vis.add_geometry("global_map_pcd", o3d.t.geometry.PointCloud())
+        self.vis.add_geometry("camera_frame_current", self.camera_frame_current)
+        self.vis.add_geometry("camera_trajectory_lines", self.camera_trajectory_lines)
+
+        o3d.visualization.gui.Application.instance.add_window(self.vis)
+        # TODO: We need multi threading as well for the visualizer to avoid blocking the main thread
+        o3d.visualization.gui.Application.instance.run()
 
     def __del__(self):
         self.vis.destroy_window()
 
-    def update(self, pcd: o3d.geometry.PointCloud, camera_pose: np.ndarray, camera_trajectory_points: list):
+    def update(self, pcd: o3d.t.geometry.PointCloud, camera_pose: np.ndarray, camera_trajectory_points: list):
         """
         Updates the visualizer with new data
         """
         start_time_pose = time.time()
-        # Updating the data from the point cloud for visualization this is necessary
-        self.global_map_pcd.clear()
-        self.global_map_pcd.points = pcd.points
-        self.global_map_pcd.colors = pcd.colors
-        self.global_map_pcd.normals = pcd.normals
-
-        # Updating the camera frame
-        transformed_base_frame = copy.deepcopy(self.camera_frame_base)
-        transformed_base_frame.transform(camera_pose)
-        self.camera_frame_current.vertices = transformed_base_frame.vertices
-        self.camera_frame_current.triangles = transformed_base_frame.triangles
-        if transformed_base_frame.has_vertex_normals():
-            self.camera_frame_current.vertex_normals = transformed_base_frame.vertex_normals
-        else:
-            self.camera_frame_current.vertex_normals = o3d.utility.Vector3dVector()
-
-        if transformed_base_frame.has_vertex_colors():
-            self.camera_frame_current.vertex_colors = transformed_base_frame.vertex_colors
-        else:
-            self.camera_frame_current.vertex_colors = o3d.utility.Vector3dVector()
 
         # Update the LineSet for visualization
         if len(camera_trajectory_points) > 1:
@@ -154,16 +139,17 @@ class SLAMVisualizer:
                 lines.append([i, i + 1])
                 colors.append([1, 0, 0])
 
-            self.camera_trajectory_lines.points = o3d.utility.Vector3dVector(points)
-            self.camera_trajectory_lines.lines = o3d.utility.Vector2iVector(np.asarray(lines))
-            self.camera_trajectory_lines.colors = o3d.utility.Vector3dVector(np.asarray(colors))
+            self.camera_trajectory_lines.points = o3d.core.Tensor(np.asarray(points), o3d.core.Dtype.Float32, DEVICE)
+            self.camera_trajectory_lines.lines = o3d.core.Tensor(np.asarray(lines), o3d.core.Dtype.Float32, DEVICE)
+            self.camera_trajectory_lines.colors = o3d.core.Tensor(np.asarray(colors), o3d.core.Dtype.Float32, DEVICE)
 
-        # Update the visualizer with the new geometries
-        # self.global_map_pcd.transform(self.transform_matrix)
+        self.camera_frame_current = copy.deepcopy(self.camera_frame_base)
+        self.camera_frame_current.transform(camera_pose)
 
-        self.vis.update_geometry(self.global_map_pcd)
-        self.vis.update_geometry(self.camera_frame_current)
-        self.vis.update_geometry(self.camera_trajectory_lines)
+        self.vis.scene.update_geometry("global_map_pcd", pcd)
+        self.vis.scene.update_geometry("camera_frame_current", self.camera_frame_current)
+        self.vis.scene.update_geometry("camera_trajectory_lines", self.camera_trajectory_lines)
+
         self.vis.poll_events()
         self.vis.update_renderer()
 
