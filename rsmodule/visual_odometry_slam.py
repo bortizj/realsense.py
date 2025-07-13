@@ -25,8 +25,6 @@ import copy
 
 from rsmodule.o3d_processing import combine_point_clouds
 
-DEVICE = o3d.core.Device("cuda:0")
-
 
 class VisualSLAM:
     """
@@ -55,9 +53,13 @@ class VisualSLAM:
         self.global_voxel_size = global_voxel_size
         self.current_voxel_size = current_voxel_size
 
-        # Global map point cloud
-        self.global_map_pcd = o3d.t.geometry.PointCloud()
         self.search_param = o3d.geometry.KDTreeSearchParamHybrid(radius=0.1, max_nn=30)
+
+        # Global map point cloud
+        self.global_map_pcd = o3d.geometry.PointCloud()
+        self.global_map_pcd.points = o3d.utility.Vector3dVector()
+        self.global_map_pcd.colors = o3d.utility.Vector3dVector()
+        self.global_map_pcd.normals = o3d.utility.Vector3dVector()
         self.current_camera_pose = np.eye(4)
 
         # For camera trajectory visualization
@@ -68,9 +70,13 @@ class VisualSLAM:
         self.bf_matcher = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
 
         # Last frame data for pose estimation
+        self.process_thread = None
         self.last_frame_data = None
         self.is_processing = False
         self.merge_count = 0
+
+        # Variable to protected the shared data access
+        self.data_lock = threading.Lock()
 
         print("[INFO]: Visual SLAM system initialized.")
 
@@ -180,21 +186,23 @@ class VisualSLAM:
         """
         if not self.is_processing:
             self.is_processing = True
-            self.process_thread = threading.Thread(target=self._process_frame_async, args=(curr_frame_data,))
+            self.process_thread = threading.Thread(
+                target=self._process_frame_async, args=(curr_frame_data, self.data_lock)
+            )
             self.process_thread.start()
 
-    def _process_frame_async(self, curr_frame_data: dict):
+    def _process_frame_async(self, curr_frame_data: dict, data_lock: threading.Lock):
         """
         Internal function to handle the actual processing in a separate thread
         """
         try:
-            self._process_frame_data(curr_frame_data)
+            self._process_frame_data(curr_frame_data, data_lock)
         except Exception as e:
             print(f"[ERROR]: Failed to process frame data: {e}")
         finally:
             self.is_processing = False
 
-    def _process_frame_data(self, curr_frame_data: dict):
+    def _process_frame_data(self, curr_frame_data: dict, data_lock: threading.Lock):
         """
         Internal function to process the frame data
         """
@@ -202,19 +210,21 @@ class VisualSLAM:
         current_raw_pcd_numpy = curr_frame_data["point_cloud"]
         current_bgr_colors = curr_frame_data["point_bgr_colors"][:, ::-1]
 
-        current_o3d_pcd_with_color = o3d.t.geometry.PointCloud()
-        current_o3d_pcd_with_color.points = o3d.core.Tensor(current_raw_pcd_numpy, o3d.core.Dtype.Float32, DEVICE)
-        current_o3d_pcd_with_color.colors = o3d.core.Tensor(current_bgr_colors, o3d.core.Dtype.Float32, DEVICE)
+        current_o3d_pcd_with_color = o3d.geometry.PointCloud()
+        current_o3d_pcd_with_color.points = o3d.utility.Vector3dVector(current_raw_pcd_numpy)
         current_o3d_pcd_with_color.estimate_normals(search_param=self.search_param)
+        current_o3d_pcd_with_color.colors = o3d.utility.Vector3dVector(current_bgr_colors)
 
         if self.last_frame_data is None:
-            # First frame: Initialize global map and current camera pose
-            self.global_map_pcd = copy.deepcopy(current_o3d_pcd_with_color)
+            # Protect shared data access with a lock
+            with data_lock:
+                # First frame: Initialize global map and current camera pose
+                self.global_map_pcd = copy.deepcopy(current_o3d_pcd_with_color)
 
-            # Set the initial camera pose to identity or origin of the world
-            self.current_camera_pose = np.eye(4)
+                # Set the initial camera pose to identity or origin of the world
+                self.current_camera_pose = np.eye(4)
 
-            self.camera_trajectory_points.append(self.current_camera_pose[:3, 3])
+                self.camera_trajectory_points.append(self.current_camera_pose[:3, 3])
 
             self.last_frame_data = copy.deepcopy(curr_frame_data)
         else:
@@ -223,12 +233,14 @@ class VisualSLAM:
             T_curr_prev = self._estimate_pose_from_features(self.last_frame_data, curr_frame_data)
 
             if T_curr_prev is not None:
-                # Update global camera pose: T_world_current = T_world_previous @ T_previous_current
-                # Note that T_previous_current is inv(T_current_previous)
-                self.current_camera_pose = self.current_camera_pose @ np.linalg.inv(T_curr_prev)
+                # Protect shared data access with a lock
+                with data_lock:
+                    # Update global camera pose: T_world_current = T_world_previous @ T_previous_current
+                    # Note that T_previous_current is inv(T_current_previous)
+                    self.current_camera_pose = self.current_camera_pose @ np.linalg.inv(T_curr_prev)
 
-                # Add current camera position to trajectory
-                self.camera_trajectory_points.append(self.current_camera_pose[:3, 3])
+                    # Add current camera position to trajectory
+                    self.camera_trajectory_points.append(self.current_camera_pose[:3, 3])
 
                 # Transform the current point cloud to the global coordinate system
                 transformed_pcd = current_o3d_pcd_with_color.transform(self.current_camera_pose)
@@ -245,7 +257,9 @@ class VisualSLAM:
                 # Updating the data from the point cloud
                 self.merge_count += 1
 
-                self.global_map_pcd = copy.deepcopy(merged_pcd)
+                # Protect shared data access with a lock
+                with data_lock:
+                    self.global_map_pcd = copy.deepcopy(merged_pcd)
 
                 # Updating last frame only if pose estimation was successful
                 self.last_frame_data = copy.deepcopy(curr_frame_data)

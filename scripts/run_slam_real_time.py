@@ -26,17 +26,5 @@ if __name__ == "__main__":
     capture = RealSenseCapture(width=640, height=480, path_store=Path(r"E:\gitProjects\test_folder"))
     capture.set_exposure(500)
     slam_system = VisualSLAM(capture.get_intrinsics(), dist_coeffs=capture.get_dist_coefficients())
-    slam_visualizer = SLAMVisualizer()
-
-    # For now infinitely run the SLAM system
-    # In the future, this will be replaced with a more sophisticated loop
-    while True:
-        data = capture.get_frame_data()
-        slam_system.process_frame_data(data)
-        slam_visualizer.update(
-            slam_system.global_map_pcd, slam_system.current_camera_pose, slam_system.camera_trajectory_points
-        )
-
-    # Waiting for the store thread to finish if it is alive
-    if capture.store_thread and capture.store_thread.is_alive():
-        capture.store_thread.join()
+    slam_visualizer = SLAMVisualizer(capture, slam_system)
+    slam_visualizer.run()
