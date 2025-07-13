@@ -18,28 +18,39 @@ author: Benhur Ortiz-Jaramillo
 from pathlib import Path
 
 from rsmodule.capture_module import RealSenseCapture
-from rsmodule.visualization import SettingControlWindow
+from rsmodule.capture_simulator import RealSenseCaptureSimulator
+from rsmodule.visualization import RealSenseBasicVisualizer
 
 
 if __name__ == "__main__":
-    capture = RealSenseCapture(width=640, height=480, path_store=Path(r"E:\gitProjects\test_folder"))
+    # TODO make it so it is possible to select a folder to either save the data or read from it
+    # TODO make it so it is possible to select if in capture mode or read-only mode
 
-    control = SettingControlWindow(capture)
+    in_capture_mode = True
+
+    if in_capture_mode:
+        capture = RealSenseCapture(width=640, height=480, path_store=Path(r"E:\gitProjects\test_folder"))
+    else:
+        capture = RealSenseCaptureSimulator(Path(r"E:\gitProjects\test_folder"))
+
+    control = RealSenseBasicVisualizer(capture)
     control.run()
 
-    print(f"Setting the following parameters to camera Serial number: {capture.get_serial_number()}")
-    print(f"Color auto exposure {control.auto_exposure_color}, Mono auto exposure {control.auto_exposure_depth}")
-    print(f"Color exposure {control.exposure_color}, Mono exposure {control.exposure_depth}")
+    # Only rus the capture module if not in read-only mode
+    if not control.read_only:
+        print(f"Setting the following parameters to camera Serial number: {capture.get_serial_number()}")
+        print(f"Color auto exposure {control.auto_exposure_color}, Mono auto exposure {control.auto_exposure_depth}")
+        print(f"Color exposure {control.exposure_color}, Mono exposure {control.exposure_depth}")
 
-    capture.set_auto_exposure(control.auto_exposure_color, control.auto_exposure_depth)
-    if control.auto_exposure_color:
-        exposure_color = None
-    else:
-        exposure_color = control.exposure_color
-    if control.auto_exposure_depth:
-        exposure_depth = None
-    else:
-        exposure_depth = control.exposure_depth
-    capture.set_exposure(exposure_color, exposure_depth)
+        capture.set_auto_exposure(control.auto_exposure_color, control.auto_exposure_depth)
+        if control.auto_exposure_color:
+            exposure_color = None
+        else:
+            exposure_color = control.exposure_color
+        if control.auto_exposure_depth:
+            exposure_depth = None
+        else:
+            exposure_depth = control.exposure_depth
+        capture.set_exposure(exposure_color, exposure_depth)
 
-    control.run(lock_window_control=True)
+        control.run(lock_window_control=True)

@@ -22,6 +22,7 @@ import cv2
 import time
 
 from rsmodule.capture_module import RealSenseCapture
+from rsmodule.capture_simulator import RealSenseCaptureSimulator
 from rsmodule.visual_odometry_slam import VisualSLAM
 from rsmodule.utils import pad_and_hstack_images
 
@@ -219,19 +220,25 @@ class SLAMVisualizer:
         self.app.run()
 
 
-class SettingControlWindow:
+class RealSenseBasicVisualizer:
     def __init__(
         self,
-        capture: RealSenseCapture,
+        capture: RealSenseCapture | RealSenseCaptureSimulator,
         min_max_exposure_color: tuple[int, int] = (100, 5000),
         min_max_exposure_depth: tuple[int, int] = (20000, 165000),
     ):
+        # identifying if the capture is a simulator or a real camera
+        self.read_only = isinstance(capture, RealSenseCaptureSimulator)
+
         self.exposure_color = min_max_exposure_color[0]
         self.exposure_depth = min_max_exposure_depth[0]
         self.auto_exposure_color = 1
         self.auto_exposure_depth = 1
         self.capture = capture
-        self.capture.set_exposure(self.exposure_color, self.exposure_depth)
+
+        if not self.read_only:
+            self.capture.set_exposure(self.exposure_color, self.exposure_depth)
+
         self.win_name = "Settings Control"
 
         self.lock_window_control = False
@@ -265,23 +272,23 @@ class SettingControlWindow:
 
     def _on_auto_exposure_color(self, val):
         self.auto_exposure_color = val
-        if not self.lock_window_control:
+        if not self.lock_window_control and not self.read_only:
             self.capture.set_auto_exposure(self.auto_exposure_color, self.auto_exposure_depth)
             self._on_exposure_color(cv2.getTrackbarPos("Exposure color", self.win_name))
 
     def _on_auto_exposure_depth(self, val):
         self.auto_exposure_depth = val
-        if not self.lock_window_control:
+        if not self.lock_window_control and not self.read_only:
             self.capture.set_auto_exposure(self.auto_exposure_color, self.auto_exposure_depth)
             self._on_exposure_depth(cv2.getTrackbarPos("Exposure depth", self.win_name))
 
     def _on_exposure_color(self, val):
-        if not self.auto_exposure_color and not self.lock_window_control:
+        if not self.auto_exposure_color and not self.lock_window_control and not self.read_only:
             self.exposure_color = max(10, val)
             self.capture.set_exposure(self.exposure_color, None)
 
     def _on_exposure_depth(self, val):
-        if not self.auto_exposure_depth and not self.lock_window_control:
+        if not self.auto_exposure_depth and not self.lock_window_control and not self.read_only:
             self.exposure_depth = max(int(10e3), val)
             self.capture.set_exposure(None, self.exposure_depth)
 
@@ -290,7 +297,7 @@ class SettingControlWindow:
         mono_img = np.dstack((data["ir_left"], data["ir_left"], data["ir_left"])).astype("uint8")
         img = pad_and_hstack_images(bgr_img, mono_img)
 
-        if self.first_run and self.lock_window_control:
+        if self.first_run and self.lock_window_control and not self.read_only:
             self.first_run = False
             self.img_txt = np.zeros_like(img, dtype="uint8")
             cv2.putText(
@@ -312,7 +319,7 @@ class SettingControlWindow:
                 2,
             )
 
-        if self.lock_window_control:
+        if self.lock_window_control and not self.read_only:
             img = cv2.addWeighted(img, 1.0, self.img_txt, 0.5, 0)
 
         cv2.imshow(self.win_name, img)
@@ -320,10 +327,13 @@ class SettingControlWindow:
     def run(self, lock_window_control: bool = False):
         self.lock_window_control = lock_window_control
         while True:
-            if self.lock_window_control:
+            if self.lock_window_control and not self.read_only:
                 data = self.capture.get_and_store_frame_data()
             else:
                 data = self.capture.get_frame_data()
+            if not data:
+                print("[INFO]: End of data stream")
+                break
             self._update_display(data)
             key = cv2.waitKey(1) & 0xFF
             if key == ord("q"):
