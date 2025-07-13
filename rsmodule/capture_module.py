@@ -41,7 +41,7 @@ class RealSenseCapture:
         height: int = 720,
         fps: int = 30,
         dec_magnitude: int = 2,
-        path_store: Path = Path(),
+        path_store: Path | None = None,
     ):
         """
         Initializes the RealSense pipeline with specified resolution and frame rate.
@@ -86,9 +86,10 @@ class RealSenseCapture:
         self.frame_id = 0
         self.is_storing = False
         self.path_store = path_store
-        if not self.path_store.exists():
-            self.path_store = None
-            print(f"[Error]: Data path {self.path_store} does not exist. Data will not be stored.")
+        if self.path_store is not None:
+            if not self.path_store.exists():
+                self.path_store = None
+                print(f"[Error]: Data path {self.path_store} does not exist. Data will not be stored.")
 
         self.store_camera_data()
 

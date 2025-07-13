@@ -15,6 +15,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 author: Benhur Ortiz-Jaramillo
 """
 
+import sys
 from pathlib import Path
 
 from rsmodule.capture_module import RealSenseCapture
@@ -23,15 +24,22 @@ from rsmodule.visualization import RealSenseBasicVisualizer
 
 
 if __name__ == "__main__":
-    # TODO make it so it is possible to select a folder to either save the data or read from it
-    # TODO make it so it is possible to select if in capture mode or read-only mode
-
     in_capture_mode = True
+    str_path = r""
+    if len(sys.argv) > 1:
+        str_path = sys.argv[1]
+        if len(sys.argv) > 2:
+            in_capture_mode = False if sys.argv[2] == "0" else True
+
+    if str_path == "":
+        path_store = None
+    else:
+        path_store = Path(str_path)
 
     if in_capture_mode:
-        capture = RealSenseCapture(width=640, height=480, path_store=Path(r"E:\gitProjects\test_folder"))
+        capture = RealSenseCapture(width=640, height=480, path_store=path_store)
     else:
-        capture = RealSenseCaptureSimulator(Path(r"E:\gitProjects\test_folder"))
+        capture = RealSenseCaptureSimulator(Path(str_path))
 
     control = RealSenseBasicVisualizer(capture)
     control.run()
