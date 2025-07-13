@@ -236,8 +236,10 @@ class RealSenseBasicVisualizer:
         self.auto_exposure_depth = 1
         self.capture = capture
 
+        self.is_playing = False
         if not self.read_only:
             self.capture.set_exposure(self.exposure_color, self.exposure_depth)
+            self.is_playing = True
 
         self.win_name = "Settings Control"
 
@@ -297,13 +299,22 @@ class RealSenseBasicVisualizer:
         mono_img = np.dstack((data["ir_left"], data["ir_left"], data["ir_left"])).astype("uint8")
         img = pad_and_hstack_images(bgr_img, mono_img)
 
+        self.img_txt = np.zeros_like(img, dtype="uint8")
+        cv2.putText(
+            self.img_txt,
+            f"Frame id: {self.capture.frame_id}",
+            (10, 30),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.7,
+            (0, 255, 0),
+            2,
+        )
         if self.first_run and self.lock_window_control and not self.read_only:
             self.first_run = False
-            self.img_txt = np.zeros_like(img, dtype="uint8")
             cv2.putText(
                 self.img_txt,
                 f"Color Exposure: {self.exposure_color}, Auto: {self.auto_exposure_color}",
-                (10, 30),
+                (10, 90),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.7,
                 (0, 255, 0),
@@ -312,29 +323,42 @@ class RealSenseBasicVisualizer:
             cv2.putText(
                 self.img_txt,
                 f"Depth Exposure: {self.exposure_depth}, Auto: {self.auto_exposure_depth}",
-                (10, 100),
+                (10, 160),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.7,
                 (0, 255, 0),
                 2,
             )
 
-        if self.lock_window_control and not self.read_only:
-            img = cv2.addWeighted(img, 1.0, self.img_txt, 0.5, 0)
+        img = cv2.addWeighted(img, 1.0, self.img_txt, 0.5, 0)
 
         cv2.imshow(self.win_name, img)
 
     def run(self, lock_window_control: bool = False):
         self.lock_window_control = lock_window_control
         while True:
-            if self.lock_window_control and not self.read_only:
-                data = self.capture.get_and_store_frame_data()
-            else:
-                data = self.capture.get_frame_data()
-            if not data:
-                print("[INFO]: End of data stream")
-                break
-            self._update_display(data)
             key = cv2.waitKey(1) & 0xFF
             if key == ord("q"):
                 break
+
+            if key == ord("p") and self.read_only:
+                self.is_playing = not self.is_playing
+
+            if self.is_playing:
+                if self.lock_window_control and not self.read_only:
+                    data = self.capture.get_and_store_frame_data()
+                else:
+                    data = self.capture.get_frame_data()
+                if not data:
+                    print("[INFO]: End of data stream")
+                    break
+                self._update_display(data)
+            else:
+                if key == ord("a"):
+                    data = self.capture.get_frame_data(go_to="previous")
+                    if data:
+                        self._update_display(data)
+                elif key == ord("d"):
+                    data = self.capture.get_frame_data(go_to="next")
+                    if data:
+                        self._update_display(data)

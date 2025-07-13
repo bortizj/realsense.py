@@ -47,7 +47,7 @@ class RealSenseCaptureSimulator:
         sn = self.serial_number
         print(f"[INFO]: RealSense SN: {sn} simulator initialized with resolution {self.w}x{self.h}.")
 
-    def get_frame_data(self) -> dict:
+    def get_frame_data(self, go_to: str = "") -> dict:
         """
         Gets the frame data from th binary files
 
@@ -57,11 +57,21 @@ class RealSenseCaptureSimulator:
                 Values will be None if a specific data type cannot be retrieved.
         """
         try:
-            with open(self.path_data.joinpath(f"id_{self.frame_id}.gz"), "rb") as file:
+            if go_to == "previous":
+                frame_offset = -1
+            elif go_to == "next":
+                frame_offset = 1
+            else:
+                frame_offset = 0
+
+            with open(self.path_data.joinpath(f"id_{self.frame_id + frame_offset}.gz"), "rb") as file:
                 data = unpickle_from_bytes(file.read())
-                self.frame_id += 1
+                if frame_offset >= 0:
+                    self.frame_id += 1
+                else:
+                    self.frame_id -= 1
         except FileNotFoundError:
-            print(f"[Error]: Frame data for id {self.frame_id} not found.")
+            print(f"[Error]: Frame data for id {self.frame_id + frame_offset} not found.")
             return {}
 
         return data
