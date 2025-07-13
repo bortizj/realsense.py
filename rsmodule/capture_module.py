@@ -15,6 +15,8 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 author: Benhur Ortiz-Jaramillo
 """
 
+import time
+
 import pyrealsense2 as rs
 import threading
 import numpy as np
@@ -96,15 +98,24 @@ class RealSenseCapture:
     def __del__(self):
         self.stop()
 
-    def set_exposure(self, manual_color_exposure: int = 500):
+    def set_auto_exposure(self, auto_color_exposure: bool = True, auto_mono_exposure: bool = True):
+        self.color_sensor.set_option(rs.option.enable_auto_exposure, auto_color_exposure)
+        self.depth_sensor.set_option(rs.option.enable_auto_exposure, auto_mono_exposure)
+
+        # Given time to apply the settings
+        time.sleep(0.05)
+
+    def set_exposure(self, manual_color_exposure: int | None = None, manual_mono_exposure: int | None = None):
         """
         Sets the exposure for both depth and color sensors
         """
-        if self.color_sensor.supports(rs.option.exposure):
+        if manual_color_exposure is not None:
             self.color_sensor.set_option(rs.option.exposure, manual_color_exposure)
-            print(f"Exposure set to {manual_color_exposure} for color sensor.")
-        else:
-            print("Color sensor does not support manual exposure control.")
+        if manual_mono_exposure is not None:
+            self.depth_sensor.set_option(rs.option.exposure, manual_mono_exposure)
+
+        # Given time to apply the settings
+        time.sleep(0.05)
 
     def get_frame_data(self) -> dict:
         """

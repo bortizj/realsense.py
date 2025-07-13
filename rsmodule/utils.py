@@ -18,6 +18,8 @@ author: Benhur Ortiz-Jaramillo
 import json
 import gzip
 import pickle
+import cv2
+import numpy as np
 
 
 def compress_dict(data_dict: dict) -> bytes:
@@ -56,3 +58,29 @@ def unpickle_from_bytes(pickled_data):
     data_dict = pickle.loads(pickled_data)
 
     return data_dict
+
+
+def pad_and_hstack_images(img1: np.ndarray, img2: np.ndarray) -> np.ndarray:
+    """
+    Pads two images to the same height and horizontally stacks them.
+    """
+    h1, w1 = img1.shape[:2]
+    h2, w2 = img2.shape[:2]
+
+    if h1 > h2:
+        # Pad img2 to match h1
+        pad_amount = h1 - h2
+        # (top, bottom, left, right)
+        img2_padded = cv2.copyMakeBorder(img2, 0, pad_amount, 0, 0, cv2.BORDER_CONSTANT, value=[0, 0, 0])
+        img1_padded = img1
+    elif h2 > h1:
+        # Pad img1 to match h2
+        pad_amount = h2 - h1
+        img1_padded = cv2.copyMakeBorder(img1, 0, pad_amount, 0, 0, cv2.BORDER_CONSTANT, value=[0, 0, 0])
+        img2_padded = img2
+    else:
+        # Heights are already equal, no padding needed
+        img1_padded = img1
+        img2_padded = img2
+
+    return np.hstack((img1_padded, img2_padded))

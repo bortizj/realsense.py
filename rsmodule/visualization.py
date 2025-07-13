@@ -23,6 +23,7 @@ import time
 
 from rsmodule.capture_module import RealSenseCapture
 from rsmodule.visual_odometry_slam import VisualSLAM
+from rsmodule.utils import pad_and_hstack_images
 
 
 class RealSenseVisualizer:
@@ -216,3 +217,114 @@ class SLAMVisualizer:
         Runs the visualizer application
         """
         self.app.run()
+
+
+class SettingControlWindow:
+    def __init__(
+        self,
+        capture: RealSenseCapture,
+        min_max_exposure_color: tuple[int, int] = (100, 5000),
+        min_max_exposure_depth: tuple[int, int] = (20000, 165000),
+    ):
+        self.exposure_color = min_max_exposure_color[0]
+        self.exposure_depth = min_max_exposure_depth[0]
+        self.auto_exposure_color = 1
+        self.auto_exposure_depth = 1
+        self.capture = capture
+        self.capture.set_exposure(self.exposure_color, self.exposure_depth)
+        self.win_name = "Settings Control"
+
+        self.lock_window_control = False
+        self.first_run = True
+
+        self.capture = capture
+
+        self._init_ui(min_max_exposure_color, min_max_exposure_depth)
+
+    def _init_ui(self, min_max_exposure_color, min_max_exposure_depth):
+        cv2.namedWindow(self.win_name, cv2.WINDOW_NORMAL)
+
+        cv2.createTrackbar(
+            "Exposure color", self.win_name, self.exposure_color, min_max_exposure_color[1], self._on_exposure_color
+        )
+        cv2.createTrackbar(
+            "Exposure depth", self.win_name, self.exposure_depth, min_max_exposure_depth[1], self._on_exposure_depth
+        )
+        cv2.createTrackbar(
+            "Auto exposure color", self.win_name, self.auto_exposure_color, 1, self._on_auto_exposure_color
+        )
+        cv2.createTrackbar(
+            "Auto exposure depth", self.win_name, self.auto_exposure_depth, 1, self._on_auto_exposure_depth
+        )
+
+        data = self.capture.get_frame_data()
+        self._update_display(data)
+
+    def __del__(self):
+        cv2.destroyAllWindows()
+
+    def _on_auto_exposure_color(self, val):
+        self.auto_exposure_color = val
+        if not self.lock_window_control:
+            self.capture.set_auto_exposure(self.auto_exposure_color, self.auto_exposure_depth)
+            self._on_exposure_color(cv2.getTrackbarPos("Exposure color", self.win_name))
+
+    def _on_auto_exposure_depth(self, val):
+        self.auto_exposure_depth = val
+        if not self.lock_window_control:
+            self.capture.set_auto_exposure(self.auto_exposure_color, self.auto_exposure_depth)
+            self._on_exposure_depth(cv2.getTrackbarPos("Exposure depth", self.win_name))
+
+    def _on_exposure_color(self, val):
+        if not self.auto_exposure_color and not self.lock_window_control:
+            self.exposure_color = max(10, val)
+            self.capture.set_exposure(self.exposure_color, None)
+
+    def _on_exposure_depth(self, val):
+        if not self.auto_exposure_depth and not self.lock_window_control:
+            self.exposure_depth = max(int(10e3), val)
+            self.capture.set_exposure(None, self.exposure_depth)
+
+    def _update_display(self, data):
+        bgr_img = data["bgr_image"].astype("uint8")
+        mono_img = np.dstack((data["ir_left"], data["ir_left"], data["ir_left"])).astype("uint8")
+        img = pad_and_hstack_images(bgr_img, mono_img)
+
+        if self.first_run and self.lock_window_control:
+            self.first_run = False
+            self.img_txt = np.zeros_like(img, dtype="uint8")
+            cv2.putText(
+                self.img_txt,
+                f"Color Exposure: {self.exposure_color}, Auto: {self.auto_exposure_color}",
+                (10, 30),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.7,
+                (0, 255, 0),
+                2,
+            )
+            cv2.putText(
+                self.img_txt,
+                f"Depth Exposure: {self.exposure_depth}, Auto: {self.auto_exposure_depth}",
+                (10, 100),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.7,
+                (0, 255, 0),
+                2,
+            )
+
+        if self.lock_window_control:
+            img = cv2.addWeighted(img, 1.0, self.img_txt, 0.5, 0)
+
+        cv2.imshow(self.win_name, img)
+
+    def run(self, lock_window_control: bool = False):
+        self.lock_window_control = lock_window_control
+        while True:
+            if self.lock_window_control:
+                data = self.capture.get_and_store_frame_data()
+            else:
+                data = self.capture.get_frame_data()
+            self._update_display(data)
+            key = cv2.waitKey(1) & 0xFF
+            if key == ord("q"):
+                break
