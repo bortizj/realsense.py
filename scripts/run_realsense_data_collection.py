@@ -20,7 +20,7 @@ from pathlib import Path
 
 from rsmodule.capture_module import RealSenseCapture
 from rsmodule.capture_simulator import RealSenseCaptureSimulator
-from rsmodule.visualization import RealSenseBasicVisualizer
+from rsmodule.visualization import RealSenseBasicCaptureVisualizer
 
 
 if __name__ == "__main__":
@@ -41,7 +41,7 @@ if __name__ == "__main__":
     else:
         capture = RealSenseCaptureSimulator(Path(str_path))
 
-    control = RealSenseBasicVisualizer(capture)
+    control = RealSenseBasicCaptureVisualizer(capture)
     control.run()
 
     # Only rus the capture module if not in read-only mode

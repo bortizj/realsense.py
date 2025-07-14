@@ -180,16 +180,19 @@ class VisualSLAM:
 
         return T_curr_prev
 
-    def process_frame_data(self, curr_frame_data: dict):
+    def process_frame_data(self, curr_frame_data: dict, is_threaded: bool = True):
         """
         The function to process the current frame data exposed to the user
         """
-        if not self.is_processing:
-            self.is_processing = True
-            self.process_thread = threading.Thread(
-                target=self._process_frame_async, args=(curr_frame_data, self.data_lock)
-            )
-            self.process_thread.start()
+        if is_threaded:
+            if not self.is_processing:
+                self.is_processing = True
+                self.process_thread = threading.Thread(
+                    target=self._process_frame_async, args=(curr_frame_data, self.data_lock)
+                )
+                self.process_thread.start()
+        else:
+            self._process_frame_data(curr_frame_data, self.data_lock)
 
     def _process_frame_async(self, curr_frame_data: dict, data_lock: threading.Lock):
         """

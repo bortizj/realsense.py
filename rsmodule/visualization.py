@@ -220,7 +220,7 @@ class SLAMVisualizer:
         self.app.run()
 
 
-class RealSenseBasicVisualizer:
+class RealSenseBasicCaptureVisualizer:
     def __init__(
         self,
         capture: RealSenseCapture | RealSenseCaptureSimulator,
@@ -245,8 +245,6 @@ class RealSenseBasicVisualizer:
 
         self.lock_window_control = False
         self.first_run = True
-
-        self.capture = capture
 
         self._init_ui(min_max_exposure_color, min_max_exposure_depth)
 
@@ -362,3 +360,55 @@ class RealSenseBasicVisualizer:
                     data = self.capture.get_frame_data(go_to="next")
                     if data:
                         self._update_display(data)
+
+
+class SLAMOfflineVisualizer:
+    def __init__(
+        self,
+        capture: RealSenseCaptureSimulator,
+        slam_system: VisualSLAM,
+    ):
+        self.capture = capture
+        self.slam_system = slam_system
+
+        self.win_name = "SLAM Offline Visualizer"
+
+        cv2.namedWindow(self.win_name, cv2.WINDOW_NORMAL)
+
+    def __del__(self):
+        cv2.destroyAllWindows()
+
+    def _update_display(self, data):
+        bgr_img = data["bgr_image"].astype("uint8")
+        mono_img = np.dstack((data["ir_left"], data["ir_left"], data["ir_left"])).astype("uint8")
+        img = pad_and_hstack_images(bgr_img, mono_img)
+
+        self.img_txt = np.zeros_like(img, dtype="uint8")
+        cv2.putText(
+            self.img_txt,
+            f"Frame id: {self.capture.frame_id}",
+            (10, 30),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.7,
+            (0, 255, 0),
+            2,
+        )
+
+        img = cv2.addWeighted(img, 1.0, self.img_txt, 0.5, 0)
+
+        cv2.imshow(self.win_name, img)
+
+    def run(self):
+        while True:
+            key = cv2.waitKey(1) & 0xFF
+            if key == ord("q"):
+                break
+
+            data = self.capture.get_frame_data()
+            self._update_display(data)
+
+            self.slam_system.process_frame_data(data, is_threaded=False)
+
+            print(len(self.slam_system.global_map_pcd.points))
+            self.slam_system.camera_trajectory_points
+            self.slam_system.current_camera_pose
