@@ -29,6 +29,85 @@ from rsmodule.visual_odometry_slam import VisualSLAM
 from rsmodule.utils import pad_and_hstack_images, draw_rectangle
 
 
+def visualize_trajectories(
+    in_poses: list[np.ndarray],
+    coord_size: float = 0.1,
+):
+    # Default materials for rendering
+    default_material = o3d.visualization.rendering.MaterialRecord()
+    default_material.shader = "defaultUnlit"
+
+    line_material = o3d.visualization.rendering.MaterialRecord()
+    line_material.shader = "unlitLine"
+    line_material.line_width = 2.0
+
+    geometries = []
+
+    # Add a coordinate frame for the world origin
+    origin_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(size=coord_size, origin=[0, 0, 0])
+    geometries.append(
+        {
+            "name": "origin_frame",
+            "group": "origin",
+            "geometry": origin_frame,
+            "material": default_material,
+        }
+    )
+
+    # Add a coordinate frame for the current camera pose, all frames are transformed to the base frame
+    frame_base = o3d.geometry.TriangleMesh.create_coordinate_frame(size=coord_size * 0.85, origin=[0, 0, 0])
+
+    # Update the LineSet for visualization and the camera frame
+    camera_geometries = []
+    points = []
+    lines = []
+    colors = []
+    for ii in range(len(in_poses)):
+        # Gets the current camera pose
+        camera_pose = in_poses[ii]
+
+        # Transform the base frame to the current camera pose
+        camera_frame_current = copy.deepcopy(frame_base)
+        camera_frame_current.transform(camera_pose)
+
+        geometry = {
+            "name": f"camera_{ii}",
+            "group": "cameras",
+            "geometry": camera_frame_current,
+            "material": default_material,
+        }
+        camera_geometries.append(geometry)
+
+        # Append the data for the trajectory lines
+        points.append(camera_pose[:3, 3])
+        if ii < len(in_poses) - 1:
+            lines.append([ii, ii + 1])
+            colors.append([1, 0, 0])
+
+    # The line set for the camera trajectory
+    camera_trajectory_lines = o3d.geometry.LineSet()
+    camera_trajectory_lines.points = o3d.utility.Vector3dVector(points)
+    camera_trajectory_lines.lines = o3d.utility.Vector2iVector(np.asarray(lines))
+    camera_trajectory_lines.colors = o3d.utility.Vector3dVector(np.asarray(colors))
+
+    camera_trajectory_geometry = {
+        "name": "trajectory_line",
+        "group": "trajectory",
+        "geometry": camera_trajectory_lines,
+        "material": line_material,
+    }
+
+    geometries += camera_geometries + [camera_trajectory_geometry]
+
+    o3d.visualization.draw(
+        geometries,
+        bg_color=(0.35, 0.35, 0.35, 1.0),
+        raw_mode=True,
+        point_size=10,
+        line_width=12,
+    )
+
+
 class RealSenseVisualizer:
     """
     Convenient class to visualize images and point clouds from a RealSense camera.

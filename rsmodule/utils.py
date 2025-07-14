@@ -19,9 +19,11 @@ import json
 import gzip
 import pickle
 import cv2
+import csv
 import time
 import numpy as np
 from typing import Callable
+from pathlib import Path
 
 
 def timing_decorator(func: Callable) -> Callable:
@@ -125,3 +127,25 @@ def draw_rectangle(
     cv2.rectangle(img, (top_left_x, top_left_y), (bottom_right_x, bottom_right_y), color, -1)
 
     return img
+
+
+def read_poses_from_file(file_path: Path) -> list:
+    """
+    Reads poses from a file and returns them as a list of dictionaries.
+    Each dictionary contains 'timestamp' and 'pose' keys.
+    """
+    list_pose_file_ids = range(len(list(file_path.joinpath("camera_poses").glob("id_*.gz"))))
+    if file_path.joinpath("list_files.csv").exists():
+        with open(file_path.joinpath("list_files.csv"), mode="r", newline="") as file:
+            csv_reader = csv.reader(file)
+            list_pose_file_ids = next(csv_reader)
+            list_pose_file_ids = [int(id) for id in list_pose_file_ids]
+
+    list_poses = []
+    for id in list_pose_file_ids:
+        pose_file = file_path.joinpath("camera_poses", f"id_{id}.gz")
+        with open(pose_file, "rb") as file:
+            data = unpickle_from_bytes(file.read())
+            list_poses.append(data)
+
+    return list_poses
