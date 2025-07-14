@@ -101,3 +101,24 @@ def pad_and_hstack_images(img1: np.ndarray, img2: np.ndarray) -> np.ndarray:
         img2_padded = img2
 
     return np.hstack((img1_padded, img2_padded))
+
+
+def draw_rectangle(
+    img: np.ndarray,
+    txt: str,
+    org_x: int,
+    org_y: int,
+    font_scale: float = 0.7,
+    thickness: int = 2,
+    color: tuple = (125, 125, 125),
+) -> tuple:
+    (text_width, text_height), baseline = cv2.getTextSize(txt, cv2.FONT_HERSHEY_SIMPLEX, font_scale, thickness)
+    padding = 5
+    top_left_x = org_x - padding
+    top_left_y = org_y - text_height - baseline - padding
+    bottom_right_x = org_x + text_width + padding
+    bottom_right_y = org_y + baseline + padding
+
+    cv2.rectangle(img, (top_left_x, top_left_y), (bottom_right_x, bottom_right_y), color, -1)
+
+    return img

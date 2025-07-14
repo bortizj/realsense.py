@@ -21,11 +21,12 @@ import pickle
 import time
 import copy
 import cv2
+import csv
 
 from rsmodule.capture_module import RealSenseCapture
 from rsmodule.capture_simulator import RealSenseCaptureSimulator
 from rsmodule.visual_odometry_slam import VisualSLAM
-from rsmodule.utils import pad_and_hstack_images
+from rsmodule.utils import pad_and_hstack_images, draw_rectangle
 
 
 class RealSenseVisualizer:
@@ -237,6 +238,8 @@ class RealSenseBasicCaptureVisualizer:
         self.auto_exposure_depth = 1
         self.capture = capture
 
+        self.frame_id = -1
+
         self.is_playing = False
         if not self.read_only:
             self.capture.set_exposure(self.exposure_color, self.exposure_depth)
@@ -265,7 +268,7 @@ class RealSenseBasicCaptureVisualizer:
             "Auto exposure depth", self.win_name, self.auto_exposure_depth, 1, self._on_auto_exposure_depth
         )
 
-        data = self.capture.get_frame_data()
+        self.frame_id, data = self.capture.get_frame_data()
         self._update_display(data)
 
     def __del__(self):
@@ -299,10 +302,11 @@ class RealSenseBasicCaptureVisualizer:
         img = pad_and_hstack_images(bgr_img, mono_img)
 
         self.img_txt = np.zeros_like(img, dtype="uint8")
+        org_x, org_y = 10, 30
         cv2.putText(
             self.img_txt,
-            f"Frame id: {self.capture.frame_id}",
-            (10, 30),
+            f"Frame id: {self.frame_id}",
+            (org_x, org_y),
             cv2.FONT_HERSHEY_SIMPLEX,
             0.7,
             (0, 255, 0),
@@ -329,6 +333,7 @@ class RealSenseBasicCaptureVisualizer:
                 2,
             )
 
+        draw_rectangle(img, f"Frame id: {self.frame_id}", org_x, org_y, 0.7, 2, (125, 125, 125))
         img = cv2.addWeighted(img, 1.0, self.img_txt, 0.5, 0)
 
         cv2.imshow(self.win_name, img)
@@ -345,20 +350,20 @@ class RealSenseBasicCaptureVisualizer:
 
             if self.is_playing:
                 if self.lock_window_control and not self.read_only:
-                    data = self.capture.get_and_store_frame_data()
+                    self.frame_id, data = self.capture.get_and_store_frame_data()
                 else:
-                    data = self.capture.get_frame_data()
+                    self.frame_id, data = self.capture.get_frame_data()
                 if not data:
                     print("[INFO]: End of data stream")
                     break
                 self._update_display(data)
             else:
                 if key == ord("a"):
-                    data = self.capture.get_frame_data(go_to="previous")
+                    self.frame_id, data = self.capture.get_frame_data(go_to="previous")
                     if data:
                         self._update_display(data)
                 elif key == ord("d"):
-                    data = self.capture.get_frame_data(go_to="next")
+                    self.frame_id, data = self.capture.get_frame_data(go_to="next")
                     if data:
                         self._update_display(data)
 
@@ -372,10 +377,19 @@ class SLAMOfflineVisualizer:
         self.capture = capture
         self.slam_system = slam_system
 
+        self.frame_id = -1
+
         # Getting the data path for saving the point cloud
         self.path_data = self.capture.path_data
         self.path_data.joinpath("pcds").mkdir(parents=True, exist_ok=True)
         self.path_data.joinpath("camera_poses").mkdir(parents=True, exist_ok=True)
+
+        self.list_frames = range(self.capture.get_total_frames())
+        if self.path_data.joinpath("list_files.csv").exists():
+            with open(self.path_data.joinpath("list_files.csv"), mode="r", newline="") as file:
+                csv_reader = csv.reader(file)
+                list_frames = next(csv_reader)
+                self.list_frames = [int(id) for id in list_frames]
 
         self.win_name = "SLAM Offline Visualizer"
         self.first_run = True
@@ -393,18 +407,20 @@ class SLAMOfflineVisualizer:
         mono_img = np.dstack((data["ir_left"], data["ir_left"], data["ir_left"])).astype("uint8")
         img = pad_and_hstack_images(bgr_img, mono_img)
 
-        self.img_txt = np.zeros_like(img, dtype="uint8")
+        img_txt = np.zeros_like(img, dtype="uint8")
+        org_x, org_y = 10, 30
+        img_txt = draw_rectangle(img_txt, f"Frame id: {self.frame_id}", org_x, org_y, 0.7, 2, (125, 125, 125))
         cv2.putText(
-            self.img_txt,
-            f"Frame id: {self.capture.frame_id}",
-            (10, 30),
+            img,
+            f"Frame id: {self.frame_id}",
+            (org_x, org_y),
             cv2.FONT_HERSHEY_SIMPLEX,
             0.7,
             (0, 255, 0),
             2,
         )
 
-        img = cv2.addWeighted(img, 1.0, self.img_txt, 0.5, 0)
+        img = cv2.addWeighted(img, 1.0, img_txt, 0.5, 0)
 
         cv2.imshow(self.win_name, img)
 
@@ -415,20 +431,29 @@ class SLAMOfflineVisualizer:
             if key == ord("q"):
                 break
 
-            data = self.capture.get_frame_data()
+            self.frame_id, data = self.capture.get_frame_data()
+
             if not data:
                 print("[INFO]: End of data stream")
                 break
+
+            if self.frame_id in self.list_frames:
+                flag_process = True
+            else:
+                flag_process = False
+
+            if not flag_process:
+                continue
 
             self._update_display(data)
             self.slam_system.process_frame_data(data, is_threaded=False)
 
             self.current_map_pcd, self.current_camera_pose, __ = self.slam_system.get_current_slam_results()
 
-            filename = self.path_data.joinpath("pcds", f"id_{self.capture.frame_id}.pcd")
+            filename = self.path_data.joinpath("pcds", f"id_{self.frame_id}.pcd")
             o3d.io.write_point_cloud(filename, self.current_map_pcd, write_ascii=True)
 
-            self._store_bin_data(self.slam_system.current_camera_pose, "camera_poses", f"id_{self.capture.frame_id}.gz")
+            self._store_bin_data(self.slam_system.current_camera_pose, "camera_poses", f"id_{self.frame_id}.gz")
 
     def _store_bin_data(self, input_data: np.ndarray, prefix: str, name: str, mode: str = "wb"):
         """

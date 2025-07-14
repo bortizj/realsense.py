@@ -47,7 +47,7 @@ class RealSenseCaptureSimulator:
         sn = self.serial_number
         print(f"[INFO]: RealSense SN: {sn} simulator initialized with resolution {self.w}x{self.h}.")
 
-    def get_frame_data(self, go_to: str = "") -> dict:
+    def get_frame_data(self, go_to: str = "") -> tuple[int, dict]:
         """
         Gets the frame data from th binary files
 
@@ -64,7 +64,8 @@ class RealSenseCaptureSimulator:
             else:
                 frame_offset = 0
 
-            with open(self.path_data.joinpath("data", f"id_{self.frame_id + frame_offset}.gz"), "rb") as file:
+            frame_id = self.frame_id + frame_offset
+            with open(self.path_data.joinpath("data", f"id_{frame_id}.gz"), "rb") as file:
                 data = unpickle_from_bytes(file.read())
                 if frame_offset >= 0:
                     self.frame_id += 1
@@ -72,9 +73,15 @@ class RealSenseCaptureSimulator:
                     self.frame_id -= 1
         except FileNotFoundError:
             print(f"[Error]: Frame data for id {self.frame_id + frame_offset} not found.")
-            return {}
+            return -1, {}
 
-        return data
+        return frame_id, data
+
+    def get_total_frames(self) -> int:
+        """
+        Returns the total number of frames available in the data folder.
+        """
+        return len(list(self.path_data.joinpath("data").glob("id_*.gz")))
 
     def _read_camera_data(self):
         """

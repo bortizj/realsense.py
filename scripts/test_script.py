@@ -31,7 +31,7 @@ if __name__ == "__main__":
     print(capture.get_dist_coefficients())
 
     while True:
-        data = capture.get_frame_data()
+        __, data = capture.get_frame_data()
         # data = capture.get_and_store_frame_data()
         if not data:
             print("[Warning]: Probably end of data reached.")

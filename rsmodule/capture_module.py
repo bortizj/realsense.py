@@ -118,7 +118,7 @@ class RealSenseCapture:
         # Given time to apply the settings
         time.sleep(0.05)
 
-    def get_frame_data(self) -> dict:
+    def get_frame_data(self) -> tuple[int, dict]:
         """
         Captures and returns the latest frames from the RealSense camera.
         This method retrieves the BGR color image, depth image, point cloud data, and infrared images.
@@ -177,13 +177,13 @@ class RealSenseCapture:
         else:
             print("[Warning]: No right infrared frame captured.")
 
-        return data
+        return -1, data
 
-    def get_and_store_frame_data(self):
+    def get_and_store_frame_data(self) -> tuple[int, dict]:
         """
         Captures the latest frames and stores them in a file
         """
-        data = self.get_frame_data()
+        current_frame_id, data = self.get_frame_data()
         if self.path_store is not None:
             if not self.is_storing:
                 self.is_storing = True
@@ -198,7 +198,7 @@ class RealSenseCapture:
             else:
                 print("[INFO]: Already storing data. Skipping this frame.")
 
-        return data
+        return current_frame_id, data
 
     def _store_data_async(self, data, current_frame_id, path_store):
         """
