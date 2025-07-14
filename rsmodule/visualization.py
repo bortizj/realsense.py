@@ -379,6 +379,9 @@ class SLAMOfflineVisualizer:
         cv2.destroyAllWindows()
 
     def _update_display(self, data):
+        if not data:
+            return
+
         bgr_img = data["bgr_image"].astype("uint8")
         mono_img = np.dstack((data["ir_left"], data["ir_left"], data["ir_left"])).astype("uint8")
         img = pad_and_hstack_images(bgr_img, mono_img)
@@ -399,16 +402,21 @@ class SLAMOfflineVisualizer:
         cv2.imshow(self.win_name, img)
 
     def run(self):
+        data = {}
         while True:
             key = cv2.waitKey(1) & 0xFF
             if key == ord("q"):
                 break
 
-            data = self.capture.get_frame_data()
+            # Making sure that the thread is not locked but also that we do not read new data while processing
             self._update_display(data)
+            if self.slam_system.is_processing_frame():
+                continue
 
-            self.slam_system.process_frame_data(data, is_threaded=False)
+            data = self.capture.get_frame_data()
+            self.slam_system.process_frame_data(data)
 
+            self._update_display(data)
             print(len(self.slam_system.global_map_pcd.points))
             self.slam_system.camera_trajectory_points
             self.slam_system.current_camera_pose

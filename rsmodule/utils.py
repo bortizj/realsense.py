@@ -19,7 +19,24 @@ import json
 import gzip
 import pickle
 import cv2
+import time
 import numpy as np
+from typing import Callable
+
+
+def timing_decorator(func: Callable) -> Callable:
+    """
+    Decorator for making the function measure the time and prints the lapsed time in the function
+    """
+
+    def wrapper(*args, **kwargs):
+        start_time = time.time()
+        result = func(*args, **kwargs)
+        end_time = time.time()
+        print(f"Info: Function '{func.__qualname__}' ran in {end_time - start_time:.3f} [sec]!")
+        return result
+
+    return wrapper
 
 
 def compress_dict(data_dict: dict) -> bytes:
@@ -53,7 +70,7 @@ def pickle_to_bytes(data_dict: dict) -> bytes:
 
 def unpickle_from_bytes(pickled_data):
     """
-    Unpickles data from a bytes object back into a dictionary
+    Un-pickles data from a bytes object back into a dictionary
     """
     data_dict = pickle.loads(pickled_data)
 

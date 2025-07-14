@@ -18,12 +18,12 @@ author: Benhur Ortiz-Jaramillo
 import cv2
 import numpy as np
 import open3d as o3d
-import time
 import threading
 
 import copy
 
 from rsmodule.o3d_processing import combine_point_clouds
+from rsmodule.utils import timing_decorator
 
 
 class VisualSLAM:
@@ -93,6 +93,7 @@ class VisualSLAM:
         z = depth
         return np.array([x, y, z])
 
+    @timing_decorator
     def _estimate_pose_from_features(self, prev_frame_data: dict, curr_frame_data: dict) -> np.ndarray:
         """
         Estimates the relative pose (T_curr_prev) from previous to current frame using feature matching and RANSAC PnP.
@@ -180,6 +181,12 @@ class VisualSLAM:
 
         return T_curr_prev
 
+    def is_processing_frame(self) -> bool:
+        """
+        Check if the SLAM system is currently processing a frame.
+        """
+        return self.is_processing
+
     def process_frame_data(self, curr_frame_data: dict, is_threaded: bool = True):
         """
         The function to process the current frame data exposed to the user
@@ -205,11 +212,11 @@ class VisualSLAM:
         finally:
             self.is_processing = False
 
+    @timing_decorator
     def _process_frame_data(self, curr_frame_data: dict, data_lock: threading.Lock):
         """
         Internal function to process the frame data
         """
-        start_time_pose = time.time()
         current_raw_pcd_numpy = curr_frame_data["point_cloud"]
         current_bgr_colors = curr_frame_data["point_bgr_colors"][:, ::-1]
 
@@ -266,7 +273,5 @@ class VisualSLAM:
 
                 # Updating last frame only if pose estimation was successful
                 self.last_frame_data = copy.deepcopy(curr_frame_data)
-                end_time_pose = time.time()
-                print(f"[INFO]: Frame SLAM process successful took: {(end_time_pose - start_time_pose) * 1000:.2f} ms")
             else:
                 print("[Error]: Pose estimation failed for given frame. Skipping integration.")

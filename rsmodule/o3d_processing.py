@@ -18,7 +18,10 @@ author: Benhur Ortiz-Jaramillo
 import open3d as o3d
 import copy
 
+from rsmodule.utils import timing_decorator
 
+
+@timing_decorator
 def combine_point_clouds(
     global_map_pcd: o3d.geometry.PointCloud,
     current_pcd: o3d.geometry.PointCloud,
