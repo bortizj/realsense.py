@@ -22,7 +22,6 @@ import threading
 
 import copy
 
-from rsmodule.o3d_processing import combine_point_clouds
 from rsmodule.utils import timing_decorator
 
 
@@ -36,7 +35,6 @@ class VisualSLAM:
         cam_int: tuple,
         dist_coeffs: np.ndarray = np.zeros((5,)),
         nmatches: int = 100,
-        global_voxel_size: float = 0.005,
         current_voxel_size: float = 0.005,
     ):
         # Camera Intrinsics for calibration
@@ -50,16 +48,13 @@ class VisualSLAM:
 
         # Initialize the parameters for the SLAM system
         self.nmatches = nmatches
-        self.global_voxel_size = global_voxel_size
         self.current_voxel_size = current_voxel_size
 
-        self.search_param = o3d.geometry.KDTreeSearchParamHybrid(radius=0.1, max_nn=30)
-
-        # Global map point cloud
-        self.global_map_pcd = o3d.geometry.PointCloud()
-        self.global_map_pcd.points = o3d.utility.Vector3dVector()
-        self.global_map_pcd.colors = o3d.utility.Vector3dVector()
-        self.global_map_pcd.normals = o3d.utility.Vector3dVector()
+        # Current map point cloud
+        self.current_map_pcd = o3d.geometry.PointCloud()
+        self.current_map_pcd.points = o3d.utility.Vector3dVector()
+        self.current_map_pcd.colors = o3d.utility.Vector3dVector()
+        self.current_map_pcd.normals = o3d.utility.Vector3dVector()
         self.current_camera_pose = np.eye(4)
 
         # For camera trajectory visualization
@@ -222,14 +217,16 @@ class VisualSLAM:
 
         current_o3d_pcd_with_color = o3d.geometry.PointCloud()
         current_o3d_pcd_with_color.points = o3d.utility.Vector3dVector(current_raw_pcd_numpy)
-        current_o3d_pcd_with_color.estimate_normals(search_param=self.search_param)
         current_o3d_pcd_with_color.colors = o3d.utility.Vector3dVector(current_bgr_colors)
 
         if self.last_frame_data is None:
             # Protect shared data access with a lock
             with data_lock:
-                # First frame: Initialize global map and current camera pose
-                self.global_map_pcd = copy.deepcopy(current_o3d_pcd_with_color)
+                # First frame: Initialize current map and current camera pose
+                current_o3d_pcd_with_color = current_o3d_pcd_with_color.voxel_down_sample(
+                    voxel_size=self.current_voxel_size
+                )
+                self.current_map_pcd = copy.deepcopy(current_o3d_pcd_with_color)
 
                 # Set the initial camera pose to identity or origin of the world
                 self.current_camera_pose = np.eye(4)
@@ -245,33 +242,28 @@ class VisualSLAM:
             if T_curr_prev is not None:
                 # Protect shared data access with a lock
                 with data_lock:
-                    # Update global camera pose: T_world_current = T_world_previous @ T_previous_current
+                    # Update current camera pose: T_world_current = T_world_previous @ T_previous_current
                     # Note that T_previous_current is inv(T_current_previous)
                     self.current_camera_pose = self.current_camera_pose @ np.linalg.inv(T_curr_prev)
 
                     # Add current camera position to trajectory
                     self.camera_trajectory_points.append(self.current_camera_pose[:3, 3])
 
-                # Transform the current point cloud to the global coordinate system
+                # Transform the current point cloud to the current coordinate system
                 transformed_pcd = current_o3d_pcd_with_color.transform(self.current_camera_pose)
-
-                # Merge with global map
-                merged_pcd, self.merge_count = combine_point_clouds(
-                    self.global_map_pcd,
-                    transformed_pcd,
-                    merge_count=self.merge_count,
-                    global_voxel_size=self.global_voxel_size,
-                    current_voxel_size=self.current_voxel_size,
-                )
-
-                # Updating the data from the point cloud
-                self.merge_count += 1
 
                 # Protect shared data access with a lock
                 with data_lock:
-                    self.global_map_pcd = copy.deepcopy(merged_pcd)
+                    self.current_map_pcd = copy.deepcopy(transformed_pcd)
 
                 # Updating last frame only if pose estimation was successful
                 self.last_frame_data = copy.deepcopy(curr_frame_data)
             else:
                 print("[Error]: Pose estimation failed for given frame. Skipping integration.")
+
+    def get_current_slam_results(self) -> tuple[o3d.geometry.PointCloud, np.ndarray, np.ndarray]:
+        """
+        Returns the current current map point cloud current calculated information.
+        """
+        with self.data_lock:
+            return self.current_map_pcd, self.current_camera_pose, self.current_camera_pose[:3, 3]
