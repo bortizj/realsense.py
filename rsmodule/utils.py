@@ -111,7 +111,10 @@ def draw_rectangle(
     font_scale: float = 0.7,
     thickness: int = 2,
     color: tuple = (125, 125, 125),
-) -> tuple:
+) -> np.ndarray:
+    """
+    Draws a filled rectangle around the text on the image
+    """
     (text_width, text_height), baseline = cv2.getTextSize(txt, cv2.FONT_HERSHEY_SIMPLEX, font_scale, thickness)
     padding = 5
     top_left_x = org_x - padding
