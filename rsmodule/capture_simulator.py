@@ -64,7 +64,7 @@ class RealSenseCaptureSimulator:
             else:
                 frame_offset = 0
 
-            with open(self.path_data.joinpath(f"id_{self.frame_id + frame_offset}.gz"), "rb") as file:
+            with open(self.path_data.joinpath("data", f"id_{self.frame_id + frame_offset}.gz"), "rb") as file:
                 data = unpickle_from_bytes(file.read())
                 if frame_offset >= 0:
                     self.frame_id += 1

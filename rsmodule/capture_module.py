@@ -189,6 +189,7 @@ class RealSenseCapture:
                 self.is_storing = True
                 current_frame_id = self.frame_id
                 path_store = self.path_store
+                path_store.joinpath("data").mkdir(parents=True, exist_ok=True)
                 self.frame_id += 1
                 self.store_thread = threading.Thread(
                     target=self._store_data_async, args=(data, current_frame_id, path_store)
@@ -205,7 +206,7 @@ class RealSenseCapture:
         """
         try:
             bytes_data = pickle_to_bytes(data)
-            with open(path_store.joinpath(f"id_{current_frame_id}.gz"), "wb") as file:
+            with open(path_store.joinpath("data", f"id_{current_frame_id}.gz"), "wb") as file:
                 file.write(bytes_data)
         except Exception as e:
             print(f"[ERROR]: Failed to store frame data id_{current_frame_id}.gz: {e}")
