@@ -17,9 +17,10 @@ author: Benhur Ortiz-Jaramillo
 
 import open3d as o3d
 import numpy as np
+import pickle
+import time
 import copy
 import cv2
-import time
 
 from rsmodule.capture_module import RealSenseCapture
 from rsmodule.capture_simulator import RealSenseCaptureSimulator
@@ -176,7 +177,7 @@ class SLAMVisualizer:
 
         # Safely access the shared data from the SLAM system
         with self.slam_system.data_lock:
-            pcd = copy.deepcopy(self.slam_system.global_map_pcd)
+            pcd = copy.deepcopy(self.slam_system.current_map_pcd)
             camera_trajectory_points = copy.deepcopy(self.slam_system.camera_trajectory_points)
             camera_pose = copy.deepcopy(self.slam_system.current_camera_pose)
 
@@ -371,7 +372,13 @@ class SLAMOfflineVisualizer:
         self.capture = capture
         self.slam_system = slam_system
 
+        # Getting the data path for saving the point cloud
+        self.path_data = self.capture.path_data
+        self.path_data.joinpath("pcds").mkdir(parents=True, exist_ok=True)
+        self.path_data.joinpath("camera_poses").mkdir(parents=True, exist_ok=True)
+
         self.win_name = "SLAM Offline Visualizer"
+        self.first_run = True
 
         cv2.namedWindow(self.win_name, cv2.WINDOW_NORMAL)
 
@@ -408,15 +415,21 @@ class SLAMOfflineVisualizer:
             if key == ord("q"):
                 break
 
-            # Making sure that the thread is not locked but also that we do not read new data while processing
-            self._update_display(data)
-            if self.slam_system.is_processing_frame():
-                continue
-
             data = self.capture.get_frame_data()
-            self.slam_system.process_frame_data(data)
-
             self._update_display(data)
-            print(len(self.slam_system.global_map_pcd.points))
-            self.slam_system.camera_trajectory_points
-            self.slam_system.current_camera_pose
+            self.slam_system.process_frame_data(data, is_threaded=False)
+
+            self.current_map_pcd, self.current_camera_pose, __ = self.slam_system.get_current_slam_results()
+
+            filename = self.path_data.joinpath("pcds", f"id_{self.capture.frame_id}.pcd")
+            o3d.io.write_point_cloud(filename, self.current_map_pcd, write_ascii=True)
+
+            self._store_bin_data(self.slam_system.current_camera_pose, "camera_poses", f"id_{self.capture.frame_id}.gz")
+
+    def _store_bin_data(self, input_data: np.ndarray, prefix: str, name: str, mode: str = "wb"):
+        """
+        Stores the current point cloud and camera pose in a binary file.
+        """
+        pickled_data = pickle.dumps(input_data, protocol=pickle.HIGHEST_PROTOCOL)
+        with open(self.path_data.joinpath(prefix, name), mode) as file:
+            file.write(pickled_data)

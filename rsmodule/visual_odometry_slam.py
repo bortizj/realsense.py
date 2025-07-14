@@ -266,4 +266,7 @@ class VisualSLAM:
         Returns the current current map point cloud current calculated information.
         """
         with self.data_lock:
-            return self.current_map_pcd, self.current_camera_pose, self.current_camera_pose[:3, 3]
+            current_map_pcd = copy.deepcopy(self.current_map_pcd)
+            current_camera_pose = copy.deepcopy(self.current_camera_pose)
+
+        return current_map_pcd, current_camera_pose, current_camera_pose[:3, 3]
