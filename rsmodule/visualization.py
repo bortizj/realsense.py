@@ -416,6 +416,10 @@ class SLAMOfflineVisualizer:
                 break
 
             data = self.capture.get_frame_data()
+            if not data:
+                print("[INFO]: End of data stream")
+                break
+
             self._update_display(data)
             self.slam_system.process_frame_data(data, is_threaded=False)
 
