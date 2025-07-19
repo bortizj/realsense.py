@@ -21,6 +21,9 @@ from pathlib import Path
 from rsmodule.utils import read_poses_from_file
 from rsmodule.visualization import visualize_trajectories
 
+from rsmodule.utils import setup_logging
+import logging
+
 
 if __name__ == "__main__":
     in_capture_mode = False
@@ -28,12 +31,15 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         str_path = sys.argv[1]
 
+    setup_logging(Path(str_path))
+    main_logger = logging.getLogger(__name__)
+
     if str_path == "":
-        print("[ERROR] Please provide a path to the data folder.")
+        main_logger.error("Please provide a path to the data folder.")
         sys.exit(0)
 
     poses = read_poses_from_file(Path(str_path))
 
-    print(len(poses))
+    main_logger.info(f"Loaded {len(poses)} poses from file.")
 
     visualize_trajectories(poses, batch_size=256)

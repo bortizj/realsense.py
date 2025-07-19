@@ -24,6 +24,10 @@ import copy
 
 from rsmodule.utils import timing_decorator, compute_reprojection_error
 
+import logging
+
+main_logger = logging.getLogger(__name__)
+
 
 class VisualSLAM:
     """
@@ -73,7 +77,7 @@ class VisualSLAM:
         # Variable to protected the shared data access
         self.data_lock = threading.Lock()
 
-        print("[INFO]: Visual SLAM system initialized.")
+        main_logger.info("Visual SLAM system initialized.")
 
     def _project_2d_into_3d(self, u: int, v: int, depth: float) -> np.ndarray:
         """
@@ -106,7 +110,7 @@ class VisualSLAM:
         kp2, des2 = self.orb.detectAndCompute(curr_gray, None)
 
         if des1 is None or des2 is None or len(kp1) < 10 or len(kp2) < 10:
-            print("[Error]: Not enough key-points for pose estimation.")
+            main_logger.error("Not enough key-points for pose estimation.")
             return None
 
         # Match descriptors and Sort them in the order of their distance
@@ -119,15 +123,15 @@ class VisualSLAM:
 
         # PnP (Perspective-n-Point) needs at least 4 points
         if len(good_matches) < 4:
-            print("[Error]: Not enough good matches for pose estimation.")
+            main_logger.error("Not enough good matches for pose estimation.")
             return None
 
         # Getting the quality of the matches
         distances = [m.distance for m in good_matches]
 
         # TODO for now just printing as log the values, later we can use this to filter outliers
-        print(f"[INFO]: Number of good matches: {len(good_matches)}")
-        print(f"[INFO]: Average distance of good matches: {np.mean(distances):.6f}")
+        main_logger.info(f"Number of good matches: {len(good_matches)}")
+        main_logger.info(f"Average distance of good matches: {np.mean(distances):.6f}")
 
         # PnP to solve for pose.
         # 3D points (from world or previous frame) and their corresponding 2D projections (in current image).
@@ -152,7 +156,7 @@ class VisualSLAM:
                 points2D_curr.append((u2, v2))
 
         if len(points3D_prev) < 4:
-            print("[Error]: Not enough valid 3D-2D correspondences for PnP.")
+            main_logger.error("Not enough valid 3D-2D correspondences for PnP.")
             return None
 
         points3D_prev = np.array(points3D_prev, dtype=np.float32)
@@ -169,7 +173,7 @@ class VisualSLAM:
         )
 
         if not success:
-            print("[Error]: PnP failed to estimate pose.")
+            main_logger.error("PnP failed to estimate pose.")
             return None
 
         # Computing the reprojection error
@@ -179,13 +183,13 @@ class VisualSLAM:
 
         # TODO for now just printing as log the values, later we can use this to filter outliers
         if inlier_errors.size > 0:
-            print(f"[INFO]: Average Inlier reprojection error: {np.mean(inlier_errors)}")
+            main_logger.info(f"Average Inlier reprojection error: {np.mean(inlier_errors)}")
         else:
-            print("[INFO]: No valid Inlier reprojection errors.")
+            main_logger.info("No valid Inlier reprojection errors.")
         if outlier_errors.size > 0:
-            print(f"[INFO]: Average Outlier reprojection error: {np.mean(outlier_errors)}")
+            main_logger.info(f"Average Outlier reprojection error: {np.mean(outlier_errors)}")
         else:
-            print("[INFO]: No valid Outlier reprojection errors.")
+            main_logger.info("No valid Outlier reprojection errors.")
 
         # Convert rotation vector to rotation matrix
         R, _ = cv2.Rodrigues(rvec)
@@ -225,7 +229,7 @@ class VisualSLAM:
         try:
             self._process_frame_data(curr_frame_data, data_lock)
         except Exception as e:
-            print(f"[ERROR]: Failed to process frame data: {e}")
+            main_logger.error(f"Failed to process frame data: {e}")
         finally:
             self.is_processing = False
 
@@ -283,7 +287,7 @@ class VisualSLAM:
                 # Updating last frame only if pose estimation was successful
                 self.last_frame_data = copy.deepcopy(curr_frame_data)
             else:
-                print("[Error]: Pose estimation failed for given frame. Skipping integration.")
+                main_logger.error("Pose estimation failed for given frame. Skipping integration.")
 
     def get_current_slam_results(self) -> tuple[o3d.geometry.PointCloud, np.ndarray, np.ndarray]:
         """

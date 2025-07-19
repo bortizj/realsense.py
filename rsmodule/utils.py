@@ -20,10 +20,42 @@ import gzip
 import pickle
 import cv2
 import csv
+import sys
 import time
 import numpy as np
 from typing import Callable
 from pathlib import Path
+
+import logging
+
+main_logger = logging.getLogger(__name__)
+
+
+def setup_logging(data_path: Path | None = None):
+    data_path.joinpath("logs").mkdir(parents=True, exist_ok=True)
+    log_file_path = data_path.joinpath("logs", "SLAM.log")
+
+    # Get the root logger
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.INFO)
+
+    # Create file handler
+    file_handler = logging.FileHandler(log_file_path, mode="a")
+    file_handler.setLevel(logging.INFO)
+    file_formatter = logging.Formatter(
+        "%(asctime)s - %(name)s - %(levelname)s - %(process)d - %(thread)d - %(filename)s:%(lineno)d - %(message)s"
+    )
+    file_handler.setFormatter(file_formatter)
+    root_logger.addHandler(file_handler)
+
+    # Create console handler
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setLevel(logging.INFO)
+    console_formatter = logging.Formatter("%(levelname)s: %(message)s")
+    console_handler.setFormatter(console_formatter)
+    root_logger.addHandler(console_handler)
+
+    root_logger.propagate = False
 
 
 def timing_decorator(func: Callable) -> Callable:
@@ -35,7 +67,7 @@ def timing_decorator(func: Callable) -> Callable:
         start_time = time.time()
         result = func(*args, **kwargs)
         end_time = time.time()
-        print(f"[INFO]: Function '{func.__qualname__}' ran in {end_time - start_time:.3f} [sec]!")
+        main_logger.info(f"Function '{func.__qualname__}' ran in {end_time - start_time:.3f} [sec]!")
         return result
 
     return wrapper

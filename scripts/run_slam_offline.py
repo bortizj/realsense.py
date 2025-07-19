@@ -21,6 +21,8 @@ from pathlib import Path
 from rsmodule.capture_simulator import RealSenseCaptureSimulator
 from rsmodule.visual_odometry_slam import VisualSLAM
 from rsmodule.visualization import SLAMOfflineVisualizer
+from rsmodule.utils import setup_logging
+import logging
 
 
 def offline_slam_worker():
@@ -36,9 +38,14 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         str_path = sys.argv[1]
 
+    setup_logging(Path(str_path))
+    main_logger = logging.getLogger(__name__)
+
     if str_path == "":
-        print("[ERROR] Please provide a path to the data folder.")
+        main_logger.error("Please provide a path to the data folder.")
         sys.exit(0)
+
+    main_logger.info("SLAM Offline started.")
 
     capture = RealSenseCaptureSimulator(Path(str_path))
     slam_system = VisualSLAM(capture.get_intrinsics(), dist_coeffs=capture.get_dist_coefficients())

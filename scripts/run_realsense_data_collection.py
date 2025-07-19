@@ -21,6 +21,8 @@ from pathlib import Path
 from rsmodule.capture_module import RealSenseCapture
 from rsmodule.capture_simulator import RealSenseCaptureSimulator
 from rsmodule.visualization import RealSenseBasicCaptureVisualizer
+from rsmodule.utils import setup_logging
+import logging
 
 
 if __name__ == "__main__":
@@ -30,6 +32,9 @@ if __name__ == "__main__":
         str_path = sys.argv[1]
         if len(sys.argv) > 2:
             in_capture_mode = False if sys.argv[2] == "0" else True
+
+    setup_logging(Path(str_path))
+    main_logger = logging.getLogger(__name__)
 
     if str_path == "":
         path_store = None
@@ -46,9 +51,11 @@ if __name__ == "__main__":
 
     # Only rus the capture module if not in read-only mode
     if not control.read_only:
-        print(f"Setting the following parameters to camera Serial number: {capture.get_serial_number()}")
-        print(f"Color auto exposure {control.auto_exposure_color}, Mono auto exposure {control.auto_exposure_depth}")
-        print(f"Color exposure {control.exposure_color}, Mono exposure {control.exposure_depth}")
+        main_logger.info(f"Setting the following parameters to camera Serial number: {capture.get_serial_number()}")
+        main_logger.info(
+            f"Color auto exposure {control.auto_exposure_color}, Mono auto exposure {control.auto_exposure_depth}"
+        )
+        main_logger.info(f"Color exposure {control.exposure_color}, Mono exposure {control.exposure_depth}")
 
         capture.set_auto_exposure(control.auto_exposure_color, control.auto_exposure_depth)
         if control.auto_exposure_color:

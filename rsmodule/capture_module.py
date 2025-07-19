@@ -27,6 +27,11 @@ from rsmodule import CameraIntrinsics
 from rsmodule.utils import pickle_to_bytes
 
 
+import logging
+
+main_logger = logging.getLogger(__name__)
+
+
 class RealSenseCapture:
     """
     Object to capture the various data types from an Intel RealSense camera.
@@ -89,12 +94,12 @@ class RealSenseCapture:
         if self.path_store is not None:
             if not self.path_store.exists():
                 self.path_store = None
-                print(f"[Error]: Data path {self.path_store} does not exist. Data will not be stored.")
+                main_logger.error(f"Data path {self.path_store} does not exist. Data will not be stored.")
 
         self.store_camera_data()
 
         sn = self.serial_number
-        print(f"[INFO]: RealSense SN: {sn} initialized with resolution {width}x{height} at {fps} FPS.")
+        main_logger.info(f"RealSense SN: {sn} initialized with resolution {width}x{height} at {fps} FPS.")
 
     def __del__(self):
         self.stop()
@@ -151,7 +156,7 @@ class RealSenseCapture:
         if color_frame:
             data["bgr_image"] = np.asanyarray(color_frame.get_data())
         else:
-            print("[Warning]: No color frame captured.")
+            main_logger.warning("No color frame captured.")
 
         if depth_frame:
             # Convert depth to meters
@@ -165,17 +170,17 @@ class RealSenseCapture:
                 data["point_cloud"] = vtx.view(np.float32).reshape(-1, 3)
                 data["point_bgr_colors"] = data["bgr_image"].reshape(-1, 3) / 255.0
         else:
-            print("[Warning]: No depth frame captured.")
+            main_logger.warning("No depth frame captured.")
 
         if ir_left_frame:
             data["ir_left"] = np.asanyarray(ir_left_frame.get_data())
         else:
-            print("[Warning]: No left infrared frame captured.")
+            main_logger.warning("No left infrared frame captured.")
 
         if ir_right_frame:
             data["ir_right"] = np.asanyarray(ir_right_frame.get_data())
         else:
-            print("[Warning]: No right infrared frame captured.")
+            main_logger.warning("No right infrared frame captured.")
 
         return -1, data
 
@@ -196,7 +201,7 @@ class RealSenseCapture:
                 )
                 self.store_thread.start()
             else:
-                print("[INFO]: Already storing data. Skipping this frame.")
+                main_logger.info("Already storing data. Skipping this frame.")
 
         return current_frame_id, data
 
@@ -209,10 +214,10 @@ class RealSenseCapture:
             with open(path_store.joinpath("data", f"id_{current_frame_id}.gz"), "wb") as file:
                 file.write(bytes_data)
         except Exception as e:
-            print(f"[ERROR]: Failed to store frame data id_{current_frame_id}.gz: {e}")
+            main_logger.error(f"Failed to store frame data id_{current_frame_id}.gz: {e}")
         finally:
             self.is_storing = False
-            print(f"[INFO]: Frame data stored as id_{current_frame_id}.gz")
+            main_logger.info(f"Frame data stored as id_{current_frame_id}.gz")
 
     def store_camera_data(self):
         """
@@ -227,7 +232,7 @@ class RealSenseCapture:
             bytes_data = pickle_to_bytes(camera_data)
             with open(self.path_store.joinpath("camera_data.gz"), "wb") as file:
                 file.write(bytes_data)
-                print("[INFO]: Camera data stored successfully.")
+                main_logger.info("Camera data stored successfully.")
 
     def compute_intrinsics_and_dist_coefficients(self):
         """
@@ -242,7 +247,7 @@ class RealSenseCapture:
         self.cx, self.cy = intrinsics.ppx, intrinsics.ppy
         self.w, self.h = intrinsics.width, intrinsics.height
 
-        print(f"[INFO]: Camera Intrinsics: fx: {self.fx}, fy: {self.fy}, cx: {self.cx}, cy: {self.cy}")
+        main_logger.info(f"Camera Intrinsics: fx: {self.fx}, fy: {self.fy}, cx: {self.cx}, cy: {self.cy}")
 
     def get_intrinsics(self):
         """
@@ -267,4 +272,4 @@ class RealSenseCapture:
         Stops the RealSense pipeline.
         """
         self.pipeline.stop()
-        print("Info: RealSense pipeline stopped.")
+        main_logger.info("RealSense pipeline stopped.")

@@ -20,25 +20,30 @@ from pathlib import Path
 
 from rsmodule.capture_simulator import RealSenseCaptureSimulator
 from rsmodule.visualization import RealSenseVisualizer
+from rsmodule.utils import setup_logging
+import logging
 
 
 if __name__ == "__main__":
+    setup_logging(Path(r"E:\gitProjects\test_folder"))
+    main_logger = logging.getLogger(__name__)
+
     capture = RealSenseCaptureSimulator(path_data=Path(r"E:\gitProjects\test_folder"))
     visualizer = RealSenseVisualizer()
 
-    print(capture.get_intrinsics())
-    print(capture.get_serial_number())
-    print(capture.get_dist_coefficients())
+    main_logger.info(f"Camera Intrinsics: {capture.get_intrinsics()}")
+    main_logger.info(f"Camera Serial Number: {capture.get_serial_number()}")
+    main_logger.info(f"Camera Distortion Coefficients: {capture.get_dist_coefficients()}")
 
     while True:
         __, data = capture.get_frame_data()
         # data = capture.get_and_store_frame_data()
         if not data:
-            print("[Warning]: Probably end of data reached.")
+            main_logger.warning("Probably end of data reached.")
             break
         visualizer.update(data)
         if cv2.waitKey(50) & 0xFF == ord("q"):
             break
 
     visualizer.stop()
-    print("Capture module executed successfully.")
+    main_logger.info("Capture module executed successfully.")

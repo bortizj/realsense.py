@@ -29,6 +29,11 @@ from rsmodule.visual_odometry_slam import VisualSLAM
 from rsmodule.utils import pad_and_hstack_images, draw_rectangle
 
 
+import logging
+
+main_logger = logging.getLogger(__name__)
+
+
 def visualize_trajectories(
     in_poses: list[np.ndarray],
     coord_size: float = 0.1,
@@ -136,7 +141,7 @@ class RealSenseVisualizer:
         """
         cv2.destroyAllWindows()
         self.vis.destroy_window()
-        print("Info: All visualization windows destroyed.")
+        main_logger.info("All visualization windows destroyed.")
 
     def update(self, data: dict):
         """
@@ -239,7 +244,7 @@ class SLAMVisualizer:
 
     def __del__(self):
         if self.slam_system.process_thread and self.slam_system.process_thread.is_alive():
-            print("Visualizer: Waiting for processing thread to finish...")
+            main_logger.info("Visualizer: Waiting for processing thread to finish...")
             self.slam_system.process_thread.join()
         self.app.quit()
         return True
@@ -293,7 +298,7 @@ class SLAMVisualizer:
         self.window.set_needs_layout()
 
         end_time_pose = time.time()
-        print(f"[INFO]: Updating render took: {(end_time_pose - start_time_pose) * 1000:.2f} ms")
+        main_logger.info(f"Updating render took: {(end_time_pose - start_time_pose) * 1000:.2f} ms")
 
         return True
 
@@ -436,7 +441,7 @@ class RealSenseBasicCaptureVisualizer:
                 else:
                     self.frame_id, data = self.capture.get_frame_data()
                 if not data:
-                    print("[INFO]: End of data stream")
+                    main_logger.info("End of data stream")
                     break
                 self._update_display(data)
             else:
@@ -517,7 +522,7 @@ class SLAMOfflineVisualizer:
             self.frame_id, data = self.capture.get_frame_data()
 
             if not data:
-                print("[INFO]: End of data stream")
+                main_logger.info("End of data stream")
                 break
 
             if self.frame_id in self.list_frames:

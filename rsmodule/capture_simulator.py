@@ -20,6 +20,10 @@ from pathlib import Path
 from rsmodule import CameraIntrinsics
 from rsmodule.utils import unpickle_from_bytes
 
+import logging
+
+main_logger = logging.getLogger(__name__)
+
 
 class RealSenseCaptureSimulator:
     """
@@ -38,14 +42,14 @@ class RealSenseCaptureSimulator:
         """
         self.path_data = path_data
         if not self.path_data.exists():
-            print(f"[Error]: Data path {self.path_data} does not exist.")
+            main_logger.error("Please provide a path to the data folder.")
             return
 
         self._read_camera_data()
         self.frame_id = 0
 
         sn = self.serial_number
-        print(f"[INFO]: RealSense SN: {sn} simulator initialized with resolution {self.w}x{self.h}.")
+        main_logger.info(f"RealSense SN: {sn} simulator initialized with resolution {self.w}x{self.h}.")
 
     def get_frame_data(self, go_to: str = "") -> tuple[int, dict]:
         """
@@ -72,7 +76,7 @@ class RealSenseCaptureSimulator:
                 else:
                     self.frame_id -= 1
         except FileNotFoundError:
-            print(f"[Error]: Frame data for id {self.frame_id + frame_offset} not found.")
+            main_logger.error(f"Frame data for id {self.frame_id + frame_offset} not found.")
             return -1, {}
 
         return frame_id, data
@@ -92,7 +96,7 @@ class RealSenseCaptureSimulator:
             self.serial_number = camera_data["serial_number"]
             self.dist_coeffs = camera_data["dist_coefficients"]
             self.fx, self.fy, self.cx, self.cy, self.w, self.h = camera_data["intrinsics"]
-            print(f"[INFO]: Camera Intrinsics: fx: {self.fx}, fy: {self.fy}, cx: {self.cx}, cy: {self.cy}")
+            main_logger.info(f"Camera Intrinsics: fx: {self.fx}, fy: {self.fy}, cx: {self.cx}, cy: {self.cy}")
 
         return camera_data
 
