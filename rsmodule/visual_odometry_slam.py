@@ -178,8 +178,14 @@ class VisualSLAM:
         )
 
         # TODO for now just printing as log the values, later we can use this to filter outliers
-        print(f"[INFO]: Average Inlier reprojection error: {np.mean(inlier_errors)}")
-        print(f"[INFO]: Average Outlier reprojection error: {np.mean(outlier_errors)}")
+        if inlier_errors.size > 0:
+            print(f"[INFO]: Average Inlier reprojection error: {np.mean(inlier_errors)}")
+        else:
+            print("[INFO]: No valid Inlier reprojection errors.")
+        if outlier_errors.size > 0:
+            print(f"[INFO]: Average Outlier reprojection error: {np.mean(outlier_errors)}")
+        else:
+            print("[INFO]: No valid Outlier reprojection errors.")
 
         # Convert rotation vector to rotation matrix
         R, _ = cv2.Rodrigues(rvec)

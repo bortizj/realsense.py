@@ -35,7 +35,7 @@ def timing_decorator(func: Callable) -> Callable:
         start_time = time.time()
         result = func(*args, **kwargs)
         end_time = time.time()
-        print(f"Info: Function '{func.__qualname__}' ran in {end_time - start_time:.3f} [sec]!")
+        print(f"[INFO]: Function '{func.__qualname__}' ran in {end_time - start_time:.3f} [sec]!")
         return result
 
     return wrapper
