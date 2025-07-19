@@ -33,7 +33,7 @@ main_logger = logging.getLogger(__name__)
 
 def setup_logging(data_path: Path | None = None):
     data_path.joinpath("logs").mkdir(parents=True, exist_ok=True)
-    log_file_path = data_path.joinpath("logs", "SLAM.log")
+    log_file_path = data_path.joinpath("logs", time.strftime("%Y-%m-%d_%H-%M-%S", time.localtime()) + "_SLAM.log")
 
     # Get the root logger
     root_logger = logging.getLogger()
