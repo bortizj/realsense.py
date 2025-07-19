@@ -149,3 +149,40 @@ def read_poses_from_file(file_path: Path) -> list:
             list_poses.append(data)
 
     return list_poses
+
+
+def compute_reprojection_error(
+    points3D_prev: np.ndarray,
+    points2D_curr: np.ndarray,
+    rvec: np.ndarray,
+    tvec: np.ndarray,
+    camera_matrix: np.ndarray,
+    dist_coeffs: np.ndarray,
+    inliers: np.ndarray = None,
+):
+    image_points_projected, _ = cv2.projectPoints(
+        objectPoints=points3D_prev,
+        rvec=rvec,
+        tvec=tvec,
+        cameraMatrix=camera_matrix,
+        distCoeffs=dist_coeffs,
+    )
+
+    # Reshape projected points to be N x 2
+    image_points_projected = image_points_projected.reshape(-1, 2)
+
+    # 2. Calculate the reprojection error for all points
+    reprojection_errors = np.linalg.norm(points2D_curr - image_points_projected, axis=1)
+
+    # 3. Separate errors for inliers and outliers
+    if inliers is not None:
+        inlier_indices = inliers.flatten()
+        outlier_indices = np.setdiff1d(np.arange(len(points3D_prev)), inlier_indices)
+
+        inlier_errors = reprojection_errors[inlier_indices]
+        outlier_errors = reprojection_errors[outlier_indices]
+    else:
+        outlier_errors = reprojection_errors
+        inlier_errors = np.array([])
+
+    return inlier_errors, outlier_errors

@@ -22,7 +22,7 @@ import threading
 
 import copy
 
-from rsmodule.utils import timing_decorator
+from rsmodule.utils import timing_decorator, compute_reprojection_error
 
 
 class VisualSLAM:
@@ -122,6 +122,13 @@ class VisualSLAM:
             print("[Error]: Not enough good matches for pose estimation.")
             return None
 
+        # Getting the quality of the matches
+        distances = [m.distance for m in good_matches]
+
+        # TODO for now just printing as log the values, later we can use this to filter outliers
+        print(f"[INFO]: Number of good matches: {len(good_matches)}")
+        print(f"[INFO]: Average distance of good matches: {np.mean(distances):.6f}")
+
         # PnP to solve for pose.
         # 3D points (from world or previous frame) and their corresponding 2D projections (in current image).
         points3D_prev = []
@@ -164,6 +171,15 @@ class VisualSLAM:
         if not success:
             print("[Error]: PnP failed to estimate pose.")
             return None
+
+        # Computing the reprojection error
+        inlier_errors, outlier_errors = compute_reprojection_error(
+            points3D_prev, points2D_curr, rvec, tvec, self.camera_matrix, self.dist_coeffs, inliers
+        )
+
+        # TODO for now just printing as log the values, later we can use this to filter outliers
+        print(f"[INFO]: Average Inlier reprojection error: {np.mean(inlier_errors)}")
+        print(f"[INFO]: Average Outlier reprojection error: {np.mean(outlier_errors)}")
 
         # Convert rotation vector to rotation matrix
         R, _ = cv2.Rodrigues(rvec)
