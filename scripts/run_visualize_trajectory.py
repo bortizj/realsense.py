@@ -34,4 +34,6 @@ if __name__ == "__main__":
 
     poses = read_poses_from_file(Path(str_path))
 
-    visualize_trajectories(poses)
+    print(len(poses))
+
+    visualize_trajectories(poses, batch_size=256)
