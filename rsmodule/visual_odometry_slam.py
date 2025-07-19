@@ -219,6 +219,7 @@ class VisualSLAM:
         current_o3d_pcd_with_color.points = o3d.utility.Vector3dVector(current_raw_pcd_numpy)
         current_o3d_pcd_with_color.colors = o3d.utility.Vector3dVector(current_bgr_colors)
 
+        self.T_curr_prev = np.eye(4)
         if self.last_frame_data is None:
             # Protect shared data access with a lock
             with data_lock:
@@ -238,6 +239,7 @@ class VisualSLAM:
             # Subsequent frames: Estimate pose and integrate into map
             # T_curr_prev transforms points from the previous camera frame to the current camera frame.
             T_curr_prev = self._estimate_pose_from_features(self.last_frame_data, curr_frame_data)
+            self.T_curr_prev = copy.deepcopy(T_curr_prev)
 
             if T_curr_prev is not None:
                 # Protect shared data access with a lock
@@ -268,5 +270,6 @@ class VisualSLAM:
         with self.data_lock:
             current_map_pcd = copy.deepcopy(self.current_map_pcd)
             current_camera_pose = copy.deepcopy(self.current_camera_pose)
+            T_curr_prev = copy.deepcopy(self.T_curr_prev)
 
-        return current_map_pcd, current_camera_pose, current_camera_pose[:3, 3]
+        return current_map_pcd, current_camera_pose, T_curr_prev
