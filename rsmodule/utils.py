@@ -15,18 +15,18 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 author: Benhur Ortiz-Jaramillo
 """
 
-import json
-import gzip
-import pickle
-import cv2
 import csv
+import gzip
+import json
+import logging
+import pickle
 import sys
 import time
-import numpy as np
-from typing import Callable
 from pathlib import Path
+from typing import Callable
 
-import logging
+import cv2
+import numpy as np
 
 main_logger = logging.getLogger(__name__)
 

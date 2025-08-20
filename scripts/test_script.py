@@ -15,20 +15,21 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 author: Benhur Ortiz-Jaramillo
 """
 
-import cv2
+import logging
 from pathlib import Path
 
-from rsmodule.capture_simulator import RealSenseCaptureSimulator
-from rsmodule.visualization import RealSenseVisualizer
-from rsmodule.utils import setup_logging
-import logging
+import cv2
 
+from rsmodule.capture_simulator import RealSenseCaptureSimulator
+from rsmodule.utils import setup_logging
+from rsmodule.visualization import RealSenseVisualizer
 
 if __name__ == "__main__":
-    setup_logging(Path(r"E:\gitProjects\test_folder"))
+    # Use Linux-compatible paths for the container environment
+    setup_logging(Path("/home/workspace/logs"))
     main_logger = logging.getLogger(__name__)
 
-    capture = RealSenseCaptureSimulator(path_data=Path(r"E:\gitProjects\test_folder"))
+    capture = RealSenseCaptureSimulator(path_data=Path("/home/workspace/logs"))
     visualizer = RealSenseVisualizer()
 
     main_logger.info(f"Camera Intrinsics: {capture.get_intrinsics()}")

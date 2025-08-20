@@ -29,12 +29,28 @@ conda env remove --name pyrs
 Once you have your environment setup you can install the package and its requirements.
 
 - [RealSense](https://dev.intelrealsense.com/docs/python2), [Numpy](https://numpy.org/), [opencv](https://opencv.org/), ...
+
 ```shell
 pip install pyrealsense2 numpy scipy opencv-python open3d tqdm packaging psutil pandas matplotlib
 ```
+
 and
+
 - the package itself
+
 ```shell
 cd path/to/repo/realsense.py
 pip install -e .
 ```
+
+You will need to gran permission to access the camera if you are running in windows. Gow to PowerShell
+
+```shell
+winget install --interactive --exact dorssel.usbipd-win
+usbipd list
+usbipd bind --busid <BUSID>
+usbipd attach --busid <BUSID>
+
+```
+
+Replace `<BUSID>` with the ID from `usbipd list`.

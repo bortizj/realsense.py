@@ -15,14 +15,14 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 author: Benhur Ortiz-Jaramillo
 """
 
+import logging
 import sys
 from pathlib import Path
 
 from rsmodule.capture_simulator import RealSenseCaptureSimulator
+from rsmodule.utils import setup_logging
 from rsmodule.visual_odometry_slam import VisualSLAM
 from rsmodule.visualization import SLAMOfflineVisualizer
-from rsmodule.utils import setup_logging
-import logging
 
 
 def offline_slam_worker():

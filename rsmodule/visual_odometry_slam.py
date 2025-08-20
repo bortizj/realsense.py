@@ -15,16 +15,15 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 author: Benhur Ortiz-Jaramillo
 """
 
+import copy
+import logging
+import threading
+
 import cv2
 import numpy as np
 import open3d as o3d
-import threading
 
-import copy
-
-from rsmodule.utils import timing_decorator, compute_reprojection_error
-
-import logging
+from rsmodule.utils import compute_reprojection_error, timing_decorator
 
 main_logger = logging.getLogger(__name__)
 

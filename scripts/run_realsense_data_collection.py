@@ -15,15 +15,14 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 author: Benhur Ortiz-Jaramillo
 """
 
+import logging
 import sys
 from pathlib import Path
 
 from rsmodule.capture_module import RealSenseCapture
 from rsmodule.capture_simulator import RealSenseCaptureSimulator
-from rsmodule.visualization import RealSenseBasicCaptureVisualizer
 from rsmodule.utils import setup_logging
-import logging
-
+from rsmodule.visualization import RealSenseBasicCaptureVisualizer
 
 if __name__ == "__main__":
     in_capture_mode = True

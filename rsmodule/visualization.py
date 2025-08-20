@@ -15,21 +15,20 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 author: Benhur Ortiz-Jaramillo
 """
 
-import open3d as o3d
-import numpy as np
+import copy
+import csv
+import logging
 import pickle
 import time
-import copy
+
 import cv2
-import csv
+import numpy as np
+import open3d as o3d
 
 from rsmodule.capture_module import RealSenseCapture
 from rsmodule.capture_simulator import RealSenseCaptureSimulator
+from rsmodule.utils import draw_rectangle, pad_and_hstack_images
 from rsmodule.visual_odometry_slam import VisualSLAM
-from rsmodule.utils import pad_and_hstack_images, draw_rectangle
-
-
-import logging
 
 main_logger = logging.getLogger(__name__)
 
