@@ -1,0 +1,46 @@
+{
+  "name": "PyRealSense Dev Container",
+  "image": "husarion/realsense:jazzy-4.55.1-20250812",
+  "runArgs": [
+    "--init",
+    "--memory=15g",
+    "--network=host",
+    "--env=DISPLAY",
+    "--device=/dev/bus/usb:/dev/bus/usb",
+    "--privileged",
+    "--mount=type=bind,source=${localWorkspaceFolder},target=/home/developer/workspace"
+  ],
+  "postCreateCommand": "bash -c \"apt-get update && apt-get install -y python3-venv && python3 -m venv .venv && source .venv/bin/activate && python3 -m pip install --no-cache-dir -r requirements.txt\"",
+  "hostRequirements": {
+    "gpu": "optional"
+  },
+  "workspaceFolder": "/home/developer/workspace",
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "python.defaultInterpreterPath": "/home/developer/workspace/.venv/bin/python"
+      },
+      "extensions": [
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "ms-azuretools.vscode-docker",
+        "ms-vscode-remote.remote-containers",
+        "charliermarsh.ruff",
+        "redhat.vscode-xml",
+        "foxundermoon.shell-format",
+        "kevinrose.vsc-python-indent",
+        "mhutchie.git-graph",
+        "xaver.clang-format",
+        "esbenp.prettier-vscode",
+        "streetsidesoftware.code-spell-checker"
+      ],
+      "command": "/bin/bash",
+      "remoteEnv": {
+        "DISPLAY": "${localEnv:DISPLAY}",
+        "QT_X11_NO_MITSHM": "1",
+        "LOCAL_WORKSPACE_FOLDER": "${localWorkspaceFolder}",
+        "PYTHONPATH": "${containerWorkspaceFolder}"
+      }
+    }
+  }
+}

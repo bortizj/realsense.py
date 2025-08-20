@@ -1,6 +1,0 @@
-[project]
-name = "rsmodule"
-version = "0.0.0"
-
-[tool.setuptools.packages.find]
-include = ["rsmodule"]

@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rsmodule"
+version = "0.1.0"
+description = "RealSense module for SLAM and computer vision"
+authors = [
+    {name = "Benhur Ortiz-Jaramillo", email = "dukejob@gmail.com"}
+]
+license = {text = "GPL-3.0"}
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = [
+    "numpy",
+    "opencv-python",
+    "open3d",
+    "pyrealsense2",
+    "scipy",
+    "matplotlib",
+    "tqdm",
+    "packaging",
+    "psutil",
+    "pandas"
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["rsmodule*"]

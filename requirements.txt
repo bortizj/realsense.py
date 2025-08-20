@@ -1,0 +1,13 @@
+# requirements.txt
+pyrealsense2
+tqdm
+packaging 
+psutil 
+pandas 
+open3d
+opencv-python
+numpy
+scipy
+matplotlib
+ruff
+-e ./rsmodule
